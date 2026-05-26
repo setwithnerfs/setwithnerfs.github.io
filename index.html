@@ -2484,6 +2484,7 @@ let firebaseReady = false;
 let db = null;
 let currentUserId = null;
 let currentUser = null; // full Firebase user object
+let _pendingScore = null;
 
 // Display name: stored in localStorage, synced to Firebase scores
 function getDisplayName() {
@@ -2528,9 +2529,13 @@ function updateHeaderNamePill() {
         if (document.getElementById('panel-leaderboard').classList.contains('active')) {
           renderLeaderboard();
         }
-        // If profile modal is open, re-render it
         if (document.getElementById('profile-modal-overlay').classList.contains('open')) {
           renderProfileModal();
+        }
+        if (_pendingScore) {
+          const e = _pendingScore; _pendingScore = null;
+          const payload = { ...e, uid: currentUserId, history: JSON.stringify(e.history), initialDeck: JSON.stringify(e.initialDeck), mods: JSON.stringify(e.mods) };
+          db.ref('scores').push(payload).catch(err => console.error('[SET] Failed to save pending score:', err));
         }
       } else {
         // Sign in anonymously if no user yet
@@ -2564,26 +2569,15 @@ function lbRecord(timeMs, mods) {
     initialDeck: [...initialDeck],
   };
 
-  if (firebaseReady && db) {
-    // Write to /scores — push() auto-generates a unique key
-    const payload = {
-      ...entry,
-      uid: currentUserId,
-      // Serialise arrays as JSON strings for RTDB (no nested arrays allowed)
-      history: JSON.stringify(entry.history),
-      initialDeck: JSON.stringify(entry.initialDeck),
-      mods: JSON.stringify(entry.mods),
+  if (db) {
+    const write = (e) => {
+      const payload = { ...e, uid: currentUserId, history: JSON.stringify(e.history), initialDeck: JSON.stringify(e.initialDeck), mods: JSON.stringify(e.mods) };
+      db.ref('scores').push(payload)
+        .then(() => { if (document.getElementById('panel-leaderboard').classList.contains('active')) renderLeaderboard(); })
+        .catch(err => console.error('[SET] Failed to save score:', err));
     };
-    db.ref('scores').push(payload)
-      .then(() => {
-        // Also refresh leaderboard if visible
-        if (document.getElementById('panel-leaderboard').classList.contains('active')) {
-          renderLeaderboard();
-        }
-      })
-      .catch(err => console.error('[SET] Failed to save score:', err));
+    if (firebaseReady) { write(entry); } else { _pendingScore = entry; }
   } else {
-    // Fallback: localStorage
     const entries = lbGetLocal();
     entries.push(entry);
     lbSaveLocal(entries);
@@ -3028,6 +3022,7 @@ function switchPanel(panel) {
   if (panel === 'player') {
     _arcanaWasOpen = !document.getElementById('arcana-screen').classList.contains('hidden');
     document.getElementById('arcana-screen').classList.add('hidden');
+    renderAllPlayers();
   }
   if (panel === 'play' && _arcanaWasOpen) {
     document.getElementById('arcana-screen').classList.remove('hidden');
@@ -3147,10 +3142,56 @@ let playerChartInstance = null;
 let playerAllEntries = [];
 let playerFilterMods = new Set(); // arcana keys to require (empty = no mod filter)
 
+function renderAllPlayers() {
+  const area = document.getElementById('player-results-area');
+  area.innerHTML = '<div class="player-empty">loading…</div>';
+  const build = (entries) => {
+    const map = new Map();
+    entries.forEach(e => {
+      const n = (e.name||'').trim(); if (!n) return;
+      if (!map.has(n)) map.set(n, {name:n, best:Infinity, runs:0});
+      const p = map.get(n); p.runs++;
+      const t = typeof e.t === 'number' ? e.t : Infinity;
+      if (t < p.best) p.best = t;
+    });
+    if (!map.size) { area.innerHTML = '<div class="player-empty">no players yet</div>'; return; }
+    const players = [...map.values()].sort((a,b) => a.name.localeCompare(b.name));
+    area.innerHTML = '';
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);width:100%;margin-bottom:4px;';
+    lbl.textContent = 'all players (' + players.length + ')';
+    area.appendChild(lbl);
+    const list = document.createElement('div');
+    list.style.cssText = 'width:100%;display:flex;flex-direction:column;gap:6px;';
+    players.forEach(p => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:background 0.15s,border-color 0.15s;';
+      row.onmouseenter = () => { row.style.background='#222'; row.style.borderColor='var(--teal)'; };
+      row.onmouseleave = () => { row.style.background='var(--surface)'; row.style.borderColor='var(--border)'; };
+      row.onclick = () => { document.getElementById('player-search-input').value = p.name; playerSearch(); };
+      const nm = document.createElement('div');
+      nm.style.cssText = 'flex:1;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      nm.textContent = p.name;
+      const rc = document.createElement('div');
+      rc.style.cssText = 'font-size:10px;color:var(--text-muted);flex-shrink:0;';
+      rc.textContent = p.runs + (p.runs===1?' run':' runs');
+      const bt = document.createElement('div');
+      bt.style.cssText = 'font-size:13px;color:var(--teal);font-variant-numeric:tabular-nums;flex-shrink:0;';
+      if (p.best < Infinity) { const s=Math.floor(p.best/1000),m=Math.floor(s/60); bt.textContent=m+':'+String(s%60).padStart(2,'0'); }
+      row.appendChild(nm); row.appendChild(rc); row.appendChild(bt);
+      list.appendChild(row);
+    });
+    area.appendChild(list);
+  };
+  if (firebaseReady && db) {
+    db.ref('scores').once('value').then(snap => { const e=[]; snap.forEach(c=>e.push(c.val())); build(e); }).catch(()=>{ area.innerHTML='<div class="player-empty">error loading</div>'; });
+  } else { build(lbGetLocal()); }
+}
+
 function playerSearch() {
   const query = document.getElementById('player-search-input').value.trim().toLowerCase();
   const area = document.getElementById('player-results-area');
-  if (!query) { area.innerHTML = '<div class="player-empty">enter a player name to search</div>'; return; }
+  if (!query) { renderAllPlayers(); return; }
   area.innerHTML = '<div class="player-empty">searching…</div>';
 
   if (firebaseReady && db) {
