@@ -1041,11 +1041,50 @@
       letter-spacing: 0.5px;
     }
     .replay-stat-row span { color: var(--text); }
+
+    /* ── Toast notifications ── */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      padding: 9px 18px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .toast.toast-success { border-color: var(--success); color: var(--success); }
+    .toast.toast-error   { border-color: var(--error);   color: var(--error);   }
+    .toast.toast-info    { border-color: var(--teal);    color: var(--teal);    }
   </style>
 </head>
 <body>
 
 
+
+<!-- ── Toast Container ── -->
+<div id="toast-container"></div>
 
 <!-- ── Replay Modal ── -->
 <div class="replay-overlay hidden" id="replay-overlay">
@@ -2505,6 +2544,21 @@ function updateHeaderNamePill() {
   pill.classList.toggle('linked', isLinked);
 }
 
+// ── Toast notifications ──────────────────────────────────────────────────────
+function showToast(msg, type = '', duration = 3500) {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' toast-' + type : '');
+  el.textContent = msg;
+  container.appendChild(el);
+  // Trigger transition
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 250);
+  }, duration);
+}
+
 (function initFirebase() {
   if (!FIREBASE_CONFIG || FIREBASE_CONFIG.apiKey === 'PASTE_YOUR_API_KEY') {
     console.warn('[SET] Firebase config not set — using localStorage fallback.');
@@ -2521,6 +2575,7 @@ function updateHeaderNamePill() {
         currentUser = user;
         currentUserId = user.uid;
         firebaseReady = true;
+        showToast('Firebase ready (anon)', 'info', 2500);
         // Auto-populate display name from Google account if not set manually
         if (!getDisplayName() && user.displayName) {
           setDisplayName(user.displayName);
@@ -2535,17 +2590,25 @@ function updateHeaderNamePill() {
         if (_pendingScore) {
           const e = _pendingScore; _pendingScore = null;
           const payload = { ...e, uid: currentUserId, history: JSON.stringify(e.history), initialDeck: JSON.stringify(e.initialDeck), mods: JSON.stringify(e.mods) };
-          db.ref('scores').push(payload).catch(err => console.error('[SET] Failed to save pending score:', err));
+          showToast('Saving score…');
+          db.ref('scores').push(payload)
+            .then(() => showToast('Score saved ✓', 'success'))
+            .catch(err => {
+              console.error('[SET] Failed to save pending score:', err);
+              showToast('SAVE FAILED: ' + (err.code || err.message), 'error', 5000);
+            });
         }
       } else {
         // Sign in anonymously if no user yet
         firebase.auth().signInAnonymously().catch(err => {
           console.error('[SET] Firebase anon auth failed:', err);
+          showToast('No Firebase', 'error', 5000);
         });
       }
     });
   } catch (err) {
     console.error('[SET] Firebase init failed:', err);
+    showToast('No Firebase', 'error', 5000);
     updateHeaderNamePill();
   }
 })();
@@ -2572,9 +2635,16 @@ function lbRecord(timeMs, mods) {
   if (db) {
     const write = (e) => {
       const payload = { ...e, uid: currentUserId, history: JSON.stringify(e.history), initialDeck: JSON.stringify(e.initialDeck), mods: JSON.stringify(e.mods) };
+      showToast('Saving score…');
       db.ref('scores').push(payload)
-        .then(() => { if (document.getElementById('panel-leaderboard').classList.contains('active')) renderLeaderboard(); })
-        .catch(err => console.error('[SET] Failed to save score:', err));
+        .then(() => {
+          showToast('Score saved ✓', 'success');
+          if (document.getElementById('panel-leaderboard').classList.contains('active')) renderLeaderboard();
+        })
+        .catch(err => {
+          console.error('[SET] Failed to save score:', err);
+          showToast('SAVE FAILED: ' + (err.code || err.message), 'error', 5000);
+        });
     };
     if (firebaseReady) { write(entry); } else { _pendingScore = entry; }
   } else {
