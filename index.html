@@ -1,0 +1,3620 @@
+<!doctype html>
+<!--
+  Based on setwithfriends by Eugene Toder (eltoder)
+  https://github.com/eltoder/setwithfriends
+  Originally by Eric Zhang & Cynthia Du — https://github.com/ekzhang/setwithfriends
+  Licensed under the MIT License
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>setwithnerfs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,600&display=swap" />
+  <!-- Firebase SDK (compat v9) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <!-- ════════════════════════════════════════════════════════════
+       🔥 PASTE YOUR FIREBASE CONFIG HERE
+       Get it from: Firebase Console → Project Settings → Your apps → SDK setup
+       ════════════════════════════════════════════════════════════ -->
+  <script>
+    const FIREBASE_CONFIG = {
+      apiKey:            "AIzaSyDZmAEJ71Xg-nBxbIE3WI8qid6_j-EWFrE",
+      authDomain:        "setwithnerfs.firebaseapp.com",
+      databaseURL:       "https://setwithnerfs-default-rtdb.firebaseio.com",
+      projectId:         "setwithnerfs",
+      storageBucket:     "setwithnerfs.firebasestorage.app",
+      messagingSenderId: "267999831684",
+      appId:             "1:267999831684:web:c6d6279ab108901663c4d1",
+    };
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0e0d;
+      --surface: #1a1917;
+      --border: #2e2c29;
+      --text: #f0ede8;
+      --text-muted: #7a766f;
+      --purple: #c084fc;
+      --teal: #2dd4bf;
+      --card-bg: #f5f0e8;
+      --selected: #2dd4bf;
+      --error: #f87171;
+      --success: #4ade80;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 10;
+    }
+
+    .logo {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+    }
+    .logo span { color: var(--teal); }
+
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+
+    .icon-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .icon-btn:hover { border-color: var(--teal); color: var(--teal); }
+    .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ── Game sub-bar — removed, stats now live below board ── */
+
+    .stat { display: flex; align-items: center; gap: 8px; }
+    .stat-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
+    .stat-value { font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text); }
+
+    .btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 7px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn:hover { border-color: var(--teal); color: var(--teal); }
+    .btn.active { border-color: var(--teal); color: var(--teal); }
+    .btn-primary { background: var(--teal); border-color: var(--teal); color: #0f0e0d; font-weight: 500; }
+    .btn-primary:hover { background: #26bfaa; border-color: #26bfaa; color: #0f0e0d; }
+
+    /* ── Nav Tabs ── */
+    .nav-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      background: var(--bg);
+      gap: 0;
+      position: sticky;
+      top: 55px;
+      z-index: 9;
+    }
+    .nav-tab {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      padding: 14px 18px 12px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      margin-bottom: -1px;
+    }
+    .nav-tab:hover { color: var(--text); }
+    .nav-tab.active { color: var(--teal); border-bottom-color: var(--teal); }
+
+    /* ── Panels ── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Arcana Selection Screen (full-screen overlay) ── */
+    /* ── Profile Modal ── */
+    .profile-modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .profile-modal-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .profile-modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 24px 24px;
+      width: 320px;
+      max-width: calc(100vw - 40px);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      transform: translateY(12px);
+      transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1);
+    }
+    .profile-modal-overlay.open .profile-modal {
+      transform: translateY(0);
+    }
+    .profile-modal-title {
+      font-family: 'Fraunces', serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.3px;
+    }
+    .profile-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .profile-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .profile-name-row {
+      display: flex;
+      gap: 8px;
+    }
+    .profile-name-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .profile-name-input:focus { border-color: var(--teal); }
+    .profile-save-btn {
+      background: var(--teal);
+      border: none;
+      border-radius: 6px;
+      color: #0f0e0d;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .profile-save-btn:hover { background: #26bfaa; }
+    .profile-save-btn:disabled { opacity: 0.4; cursor: default; background: var(--teal); }
+    .profile-google-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 10px 16px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      width: 100%;
+    }
+    .profile-google-btn:hover { border-color: var(--teal); color: var(--teal); }
+    .profile-google-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .profile-status {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .profile-status strong { color: var(--text); }
+    .profile-error { font-size: 11px; color: var(--error); margin-top: 4px; }
+    .profile-success { font-size: 11px; color: var(--success); margin-top: 4px; }
+    .profile-divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+    .profile-modal-close {
+      position: absolute;
+      top: 0; right: 0;
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 18px;
+    }
+
+    .profile-modal-wrap { position: relative; }
+
+    .lb-name {
+      font-size: 11px;
+      color: var(--text-muted);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .header-name-pill {
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: none;
+      font-family: 'DM Mono', monospace;
+    }
+    .header-name-pill:hover { border-color: var(--teal); color: var(--teal); }
+    .header-name-pill.linked { color: var(--teal); border-color: var(--teal); }
+
+    .arcana-screen {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: 95px; /* below sticky header (55px) + sticky nav (40px) */
+      z-index: 8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      padding: 36px 20px 48px;
+      background: rgba(15, 14, 13, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      overflow: hidden;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+    .arcana-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* ── Active Modifier Mini-Cards ── */
+    .modifier-pills {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .modifier-mini-card {
+      width: 28px;
+      height: 46px;
+      background: var(--card-bg);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .modifier-mini-card svg { display: block; }
+    .arcana-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .arcana-cards {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .arcana-card {
+      width: 110px;
+      height: 190px;
+      background: var(--card-bg);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 10px 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5), 0 0 0 2px transparent;
+      transition: box-shadow 0.15s, transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1);
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      flex-shrink: 0;
+    }
+    .arcana-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 2px var(--border); }
+    .arcana-card.selected { box-shadow: 0 4px 24px rgba(0,0,0,0.5), 0 0 0 3px var(--teal); transform: translateY(-4px) scale(1.03); }
+    .arcana-numeral {
+      font-family: 'DM Mono', monospace;
+      font-size: 8px;
+      color: #9a9590;
+      letter-spacing: 3px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .arcana-art {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+    }
+    .arcana-name {
+      font-family: 'Fraunces', serif;
+      font-size: 10px;
+      color: #3a3630;
+      font-weight: 300;
+      letter-spacing: 0.5px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .arcana-effect {
+      font-family: 'DM Mono', monospace;
+      font-size: 7px;
+      color: #9a9590;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      height: 12px;
+      display: flex;
+      align-items: center;
+    }
+    .arcana-start {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: var(--teal);
+      color: #0f0e0d;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 36px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+    .arcana-start:hover { background: #26bfaa; }
+    @keyframes pulse-rays {
+      0%   { opacity: 1;    transform: scale(1); }
+      50%  { opacity: 0;    transform: scale(0.82); }
+      100% { opacity: 1;    transform: scale(1); }
+    }
+    .sun-rays { animation: pulse-rays 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+    @keyframes spin-ouroboros {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    .ouroboros-spin { animation: spin-ouroboros 22s linear infinite; transform-box: fill-box; transform-origin: center; }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 16px 32px;
+      gap: 0;
+    }
+
+    .deck-count { font-size: 11px; color: var(--text-muted); letter-spacing: 0.5px; }
+
+    /* ── Below-board stats panel ── */
+    .below-board {
+      width: 100%;
+      max-width: 860px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 16px 0 8px;
+    }
+    .below-divider {
+      width: 48px;
+      height: 1px;
+      background: var(--border);
+      margin: 6px 0;
+    }
+    .below-timer {
+      font-size: 52px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -1px;
+      color: var(--text);
+      line-height: 1;
+    }
+    .below-score-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .below-score-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .below-score-value {
+      font-size: 22px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+
+    /* ── Spring board (absolute-positioned, matches repo animation model) ── */
+    .board-container {
+      width: 100%;
+      max-width: 860px;
+      position: relative;
+      overflow: hidden;
+      transition: height 0.55s cubic-bezier(0.4,0,0.2,1);
+      border-radius: 6px;
+    }
+
+    .card-sprite {
+      position: absolute;
+      will-change: transform, opacity;
+    }
+
+    .set-card {
+      width: 100%; height: 100%;
+      background: var(--card-bg);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: box-shadow 0.12s;
+      overflow: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .set-card:hover { box-shadow: 0 0 0 2px var(--border), 0 4px 20px rgba(0,0,0,0.4); }
+    .set-card.selected { box-shadow: 0 0 0 3px var(--selected); }
+    .card-sprite.leaving { pointer-events: none; z-index: 2; }
+    .card-sprite.moving  { z-index: 1; }
+
+    .set-card.flash-success { animation: flash-success 0.5s ease forwards; }
+    .set-card.flash-error   { animation: flash-error   0.9s ease-out forwards; }
+
+    @keyframes flash-success {
+      0%   { box-shadow: 0 0 0 0px rgba(74, 222, 128, 0); }
+      30%  { box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.35); }
+      100% { box-shadow: 0 0 0 0px rgba(74, 222, 128, 0); }
+    }
+    @keyframes flash-error {
+      0%   { box-shadow: 0 0 0 3px rgba(248, 113, 113, 1); }
+      100% { box-shadow: 0 0 0 3px rgba(248, 113, 113, 0); }
+    }
+
+    .card-symbols {
+      display: flex; align-items: center; justify-content: center;
+      gap: 4%; width: 92%; height: 80%;
+    }
+
+    .end-screen {
+      display: none; flex-direction: column; align-items: center;
+      gap: 24px; padding: 60px 24px; text-align: center;
+    }
+    .end-screen.show { display: flex; }
+    .end-title { font-family: 'Fraunces', serif; font-size: 48px; font-weight: 300; color: var(--teal); }
+    .end-stats { display: flex; gap: 40px; }
+    .end-stat-label { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+    .end-stat-value { font-size: 32px; font-weight: 500; }
+
+    #svg-defs { position: fixed; z-index: -1; width: 0; height: 0; overflow: hidden; }
+
+    /* ── Player Panel ── */
+    .player-panel-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding: 28px 20px 48px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .player-search-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+    .player-search-input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .player-search-input:focus { border-color: var(--teal); }
+    #player-results-area {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .player-stats-header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .player-name-display {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 300;
+      color: var(--teal);
+      letter-spacing: -0.3px;
+    }
+    .player-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+    .player-stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .player-stat-card-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .player-stat-card-value {
+      font-size: 20px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .player-chart-section {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .player-chart-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .player-chart-filters {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .player-chart-filter-label {
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .player-chart-wrap {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+    .player-chart-wrap canvas {
+      display: block;
+      width: 100% !important;
+    }
+    .player-empty {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-align: center;
+      padding: 32px 0;
+    }
+    .player-recent-section {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .player-mini-mods {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    /* ── History ── */
+    .history-panel {
+      width: 100%;
+      max-width: 860px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .history-label {
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 2px;
+    }
+    .history-list {
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 6px;
+      padding-right: 2px;
+    }
+    .history-list::-webkit-scrollbar { width: 4px; }
+    .history-list::-webkit-scrollbar-track { background: transparent; }
+    .history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .history-entry {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      animation: fadeSlideIn 0.2s ease;
+    }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .history-num {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      text-align: left;
+      flex-shrink: 0;
+      width: 18px;
+    }
+    .history-cards { display: flex; gap: 8px; align-items: center; justify-content: center; flex: 1; }
+    .history-time {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      letter-spacing: 0.3px;
+      flex-shrink: 0;
+    }
+    .hist-card {
+      width: calc(32px * 1.6);
+      height: 32px;
+      background: var(--card-bg);
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px;
+      flex-shrink: 0;
+    }
+    .hist-card svg { display: block; width: 100%; height: 100%; }
+    /* ── Leaderboard Panel styles moved to lb-drawer ── */
+    .lb-panel-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 28px 20px 40px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* ── Leaderboard ── */
+    .lb-filter-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .lb-filter-cards {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .lb-mini-card {
+      width: 36px;
+      height: 58px;
+      background: var(--card-bg);
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0.38;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 0 2px transparent;
+      transition: opacity 0.15s, box-shadow 0.15s, transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .lb-mini-card:hover { opacity: 0.65; transform: translateY(-2px); }
+    .lb-mini-card.active { opacity: 1; box-shadow: 0 2px 12px rgba(0,0,0,0.5), 0 0 0 2px var(--teal); transform: translateY(-4px) scale(1.08); }
+    .lb-mini-card svg { display: block; }
+    .lb-list {
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      
+    }
+    .lb-list::-webkit-scrollbar { width: 4px; }
+    .lb-list::-webkit-scrollbar-track { background: transparent; }
+    .lb-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .lb-entry {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .lb-rank {
+      font-size: 11px;
+      color: var(--text-muted);
+      width: 22px;
+      text-align: right;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .lb-rank.gold   { color: #f5c842; }
+    .lb-rank.silver { color: #aab0bb; }
+    .lb-rank.bronze { color: #cd7c4a; }
+    .lb-mods {
+      display: flex;
+      gap: 5px;
+      flex: 1;
+      align-items: center;
+    }
+    .lb-mod-pip {
+      width: 20px;
+      height: 33px;
+      background: var(--card-bg);
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .lb-mod-pip svg { display: block; }
+    .lb-no-mods {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+    .lb-time {
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+      flex-shrink: 0;
+      letter-spacing: 0.5px;
+    }
+    .lb-empty {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      letter-spacing: 1px;
+      padding: 32px 0;
+    }
+
+    /* ── Leaderboard entry clickable ── */
+    .lb-entry {
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .lb-entry:hover { background: #222; border-color: var(--teal); }
+
+    /* ── Replay Modal ── */
+    .replay-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.82);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 20px 16px 40px;
+      overflow: hidden;
+      backdrop-filter: blur(4px);
+    }
+    .replay-overlay.hidden { display: none; }
+    .replay-modal {
+      width: 100%;
+      max-width: 720px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .replay-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .replay-title {
+      font-family: 'Fraunces', serif;
+      font-size: 20px;
+      font-weight: 300;
+      color: var(--teal);
+      letter-spacing: -0.3px;
+    }
+    .replay-meta {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      margin-top: 2px;
+    }
+    .replay-meta-mods {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+    .replay-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .replay-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 7px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .replay-btn:hover { border-color: var(--teal); color: var(--teal); }
+    .replay-btn.active { border-color: var(--teal); color: var(--teal); background: rgba(45,212,191,0.08); }
+    .replay-btn-close {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      width: 32px; height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .replay-btn-close:hover { border-color: var(--error); color: var(--error); }
+    .replay-progress {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      font-variant-numeric: tabular-nums;
+      margin-left: auto;
+    }
+    .replay-speed-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+    .replay-speed-row input[type=range] {
+      width: 90px;
+      accent-color: var(--teal);
+    }
+    .replay-board-wrap {
+      width: 100%;
+      position: relative;
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .replay-board-inner {
+      position: relative;
+      transition: height 0.4s cubic-bezier(0.4,0,0.2,1);
+    }
+    .replay-step-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .replay-set-found {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(74,222,128,0.06);
+      border: 1px solid rgba(74,222,128,0.2);
+      border-radius: 6px;
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+    .replay-set-found .hist-card { width: 48px; height: 30px; }
+    .replay-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .replay-scrubber {
+      width: 100%;
+      accent-color: var(--teal);
+      cursor: pointer;
+    }
+    .replay-stat-row {
+      display: flex;
+      gap: 24px;
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+    .replay-stat-row span { color: var(--text); }
+  </style>
+</head>
+<body>
+
+
+
+<!-- ── Replay Modal ── -->
+<div class="replay-overlay hidden" id="replay-overlay">
+  <div class="replay-modal">
+    <div class="replay-header">
+      <div>
+        <div class="replay-title">Replay</div>
+        <div class="replay-meta">
+          <span id="replay-meta-time">—</span>
+          <div class="replay-meta-mods" id="replay-meta-mods"></div>
+        </div>
+      </div>
+      <button class="replay-btn-close" onclick="closeReplay()" title="Close">✕</button>
+    </div>
+
+    <div class="replay-controls">
+      <button class="replay-btn" id="replay-btn-prev" onclick="replayStep(-1)">← Prev</button>
+      <button class="replay-btn" id="replay-btn-play" onclick="replayTogglePlay()">▶ Play</button>
+      <button class="replay-btn" id="replay-btn-next" onclick="replayStep(1)">Next →</button>
+      <div class="replay-speed-row">
+        <span>Speed</span>
+        <input type="range" id="replay-speed" min="200" max="2000" value="900" step="100" oninput="replayUpdateSpeed()">
+        <span id="replay-speed-label">1×</span>
+      </div>
+      <div class="replay-progress" id="replay-progress">Set 0 / 0</div>
+    </div>
+
+    <div>
+      <div class="replay-label">Scrub</div>
+      <input type="range" class="replay-scrubber" id="replay-scrubber" min="0" value="0" oninput="replayScrub(this.value)">
+    </div>
+
+    <div class="replay-board-wrap">
+      <div class="replay-board-inner" id="replay-board-inner">
+        <div id="replay-board" style="position:relative;"></div>
+      </div>
+    </div>
+
+    <div id="replay-step-info" class="replay-step-info"></div>
+
+    <div class="replay-stat-row" id="replay-stat-row"></div>
+  </div>
+</div>
+
+<svg id="svg-defs" aria-hidden="true">
+  <defs>
+    <path id="squiggle" d="m67.892902,12.746785c43.231313,-6.717223 107.352741,6.609823 121.028973,58.746408c13.676233,52.136585 -44.848649,161.467192 -45.07116,204.650732c4.566246,56.959708 83.805481,87.929227 22.329944,105.806022c-61.475536,17.876795 -126.122496,-1.855045 -143.73294,-41.933823c-17.610444,-40.07878 49.274638,-120.109409 46.14822,-188.091997c-3.126418,-67.982588 -21.873669,-70.257464 -49.613153,-80.177084c-27.739485,-9.919618 5.678801,-52.283035 48.910115,-59.000258z"/>
+    <path id="oval" d="m11.49999,95.866646c0,-44.557076 37.442923,-81.999998 82.000002,-81.999998l12.000015,0c44.557076,0 81.999992,37.442923 81.999992,81.999998l0,206.133354c0,44.557098 -37.442917,82 -81.999992,82l-12.000015,0c-44.557079,0 -82.000002,-37.442902 -82.000002,-82l0,-206.133354z"/>
+    <path id="diamond" d="m100 10-90 190 90 190 90-190-90-190z"/>
+    <pattern id="pattern-stripes" width="2" height="20" patternUnits="userSpaceOnUse">
+      <rect width="2" height="8" fill="#fff"/>
+    </pattern>
+    <mask id="mask-stripes">
+      <rect x="0" y="0" width="200" height="400" fill="url(#pattern-stripes)"/>
+    </mask>
+    <pattern id="pattern-checkers" width="100" height="200" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="50" height="100" fill="#fff"/>
+      <rect x="50" y="100" width="50" height="100" fill="#fff"/>
+    </pattern>
+    <mask id="mask-checkers">
+      <rect x="0" y="0" width="200" height="400" fill="url(#pattern-checkers)"/>
+    </mask>
+    <!-- Gradients in userSpaceOnUse so they work on both fill and stroke -->
+    <linearGradient id="grad-0" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9333ea"/>
+      <stop offset="100%" stop-color="#9333ea"/>
+    </linearGradient>
+    <linearGradient id="grad-1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#16a34a"/>
+    </linearGradient>
+    <linearGradient id="grad-2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<header>
+  <div class="logo">set<span>with</span>nerfs</div>
+  <button class="header-name-pill" id="header-name-pill" onclick="openProfileModal()">anon</button>
+</header>
+
+<!-- ── Profile Modal ── -->
+<div class="profile-modal-overlay" id="profile-modal-overlay" onclick="handleOverlayClick(event)">
+  <div class="profile-modal profile-modal-wrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div class="profile-modal-title">Profile</div>
+      <button onclick="closeProfileModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;padding:0;line-height:1;">×</button>
+    </div>
+
+    <div class="profile-section">
+      <div class="profile-label">Display name</div>
+      <div class="profile-name-row">
+        <input class="profile-name-input" id="profile-name-input" type="text" maxlength="24" placeholder="your name" />
+        <button class="profile-save-btn" id="profile-save-btn" onclick="saveProfileName()">Save</button>
+      </div>
+      <div id="profile-name-msg"></div>
+    </div>
+
+    <hr class="profile-divider" />
+
+    <div class="profile-section" id="profile-google-section">
+      <!-- filled by renderProfileModal() -->
+    </div>
+  </div>
+</div>
+
+<nav class="nav-tabs">
+  <button class="nav-tab active" id="tab-play" onclick="switchPanel('play')">Play</button>
+  <button class="nav-tab" id="tab-leaderboard" onclick="switchPanel('leaderboard')">Leaderboard</button>
+  <button class="nav-tab" id="tab-player" onclick="switchPanel('player')">Player</button>
+</nav>
+
+<!-- ── Arcana Selection Screen (overlay) ── -->
+<div id="arcana-screen" class="arcana-screen">
+  <div class="arcana-title">Choose your modifiers</div>
+  <div class="arcana-cards">
+
+    <!-- XIX — The Sun → Shade -->
+    <div class="arcana-card" id="arc-fill" onclick="toggleArcana('fill')">
+      <div class="arcana-numeral">XIX</div>
+      <div class="arcana-art">
+        <svg width="80" height="80" viewBox="-60 -60 120 120">
+          <g fill="#3a3630">
+            <g transform="rotate(0)"><polygon points="-6,-30 0,-56 6,-30"/></g>
+            <g transform="rotate(45)"><polygon points="-6,-30 0,-56 6,-30"/></g>
+            <g transform="rotate(90)"><polygon points="-6,-30 0,-56 6,-30"/></g>
+            <g transform="rotate(135)"><polygon points="-6,-30 0,-56 6,-30"/></g>
+            <g transform="rotate(180)"><polygon points="-6,-30 0,-56 6,-30"/></g>
+            <g transform="rotate(225)"><polygon points="-6,-30 0,-56 6,-30"/></g>
+            <g transform="rotate(270)"><polygon points="-6,-30 0,-56 6,-30"/></g>
+            <g transform="rotate(315)"><polygon points="-6,-30 0,-56 6,-30"/></g>
+          </g>
+          <circle r="26" fill="#3a3630"/>
+        </svg>
+      </div>
+      <div class="arcana-name">The Sun</div>
+      <div class="arcana-effect">Shade</div>
+    </div>
+
+    <!-- XVIII — The Moon → Morph -->
+    <div class="arcana-card" id="arc-morph" onclick="toggleArcana('morph')">
+      <div class="arcana-numeral">XVIII</div>
+      <div class="arcana-art">
+        <svg width="74" height="74" viewBox="0 0 74 74" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <mask id="moon-mask">
+              <rect width="74" height="74" fill="white"/>
+              <circle cx="46" cy="28" r="22" fill="black"/>
+            </mask>
+          </defs>
+          <circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#moon-mask)"/>
+        </svg>
+      </div>
+      <div class="arcana-name">The Moon</div>
+      <div class="arcana-effect">Morph</div>
+    </div>
+
+    <!-- XVII — The Star → Clone -->
+    <div class="arcana-card" id="arc-clone" onclick="toggleArcana('clone')">
+      <div class="arcana-numeral">XVII</div>
+      <div class="arcana-art">
+        <svg width="80" height="80" viewBox="-54 -54 108 108">
+          <polygon points="0.0,-50.0 5.7,-13.9 19.8,-19.8 13.9,-5.7 50.0,0.0 13.9,5.7 19.8,19.8 5.7,13.9 0.0,50.0 -5.7,13.9 -19.8,19.8 -13.9,5.7 -50.0,0.0 -13.9,-5.7 -19.8,-19.8 -5.7,-13.9" fill="#3a3630"/>
+          <path id="arcana-star-eye" fill="#f5f0e8" d="M -13,0 A 22,22 0 0,0 13,0 A 22,22 0 0,0 -13,0 Z"/>
+          <circle cx="0" cy="0" r="4" fill="#3a3630"/>
+        </svg>
+      </div>
+      <div class="arcana-name">The Star</div>
+      <div class="arcana-effect">Clone</div>
+    </div>
+
+    <!-- XXI — The World → Tint -->
+    <div class="arcana-card" id="arc-hue" onclick="toggleArcana('hue')">
+      <div class="arcana-numeral">XXI</div>
+      <div class="arcana-art">
+        <svg width="70" height="70" viewBox="240 200 520 540" xmlns="http://www.w3.org/2000/svg">
+          <g>
+            <path d="M0 0 C0.99 0.22042969 0.99 0.22042969 2 0.4453125 C14.5226572 3.44905798 25.44714632 11.7751019 35.6875 19.25 C42.78944302 24.41994062 49.7063911 27.98805384 58 31 C58.75667969 31.2784375 59.51335937 31.556875 60.29296875 31.84375 C60.93878906 32.0809375 61.58460938 32.318125 62.25 32.5625 C71.42087136 35.94020851 80.75853473 40.09312975 85.4375 49.125 C88.25351555 56.37837339 88.02342049 63.96240589 85.4375 71.25 C81.36919126 80.15745492 73.94017094 87.46613398 64.94140625 91.3046875 C61.32087879 92.62796768 57.67416703 93.83713546 54 95 C52.72385324 95.41504159 51.44781215 95.83040822 50.171875 96.24609375 C36.59832164 100.6173535 22.85200434 104.37164253 9 107.75 C8.15219971 107.96076172 7.30439941 108.17152344 6.4309082 108.38867188 C-16.44353767 113.853633 -41.37369982 113.49479535 -62.08203125 101.81640625 C-64.70240941 100.18524716 -67.10732467 98.42702274 -69.5625 96.5625 C-74.87953753 92.96624916 -79.78782893 93.02628181 -86 94 C-108.61610404 99.47032119 -130.01431658 115.59842888 -146 132 C-146.67160156 132.68578125 -147.34320313 133.3715625 -148.03515625 134.078125 C-161.02939533 147.99873565 -171.58754944 164.48905407 -179 182 C-179.35964844 182.83273437 -179.71929687 183.66546875 -180.08984375 184.5234375 C-183.90146435 193.64255999 -186.06505058 203.0505435 -188.125 212.6875 C-188.29580078 213.48341553 -188.46660156 214.27933105 -188.64257812 215.09936523 C-195.10395814 246.07087053 -190.97614633 282.47560584 -177 311 C-176.53335938 311.95390625 -176.06671875 312.9078125 -175.5859375 313.890625 C-175.18632812 314.66921875 -174.78671875 315.4478125 -174.375 316.25 C-173.18168695 318.57582034 -172.06575809 320.81830822 -171.17578125 323.27734375 C-169.47050896 327.22609719 -167.1569458 330.7152459 -164.8125 334.3125 C-164.31782227 335.07361084 -163.82314453 335.83472168 -163.31347656 336.61889648 C-159.89834876 341.80118027 -156.28502152 346.50492841 -152 351 C-150.91323131 352.2678968 -149.83004066 353.53886715 -148.75 354.8125 C-134.49562272 371.04399449 -118.09328913 383.0861768 -99 393 C-98.01 393.53367187 -98.01 393.53367187 -97 394.078125 C-78.01229312 404.04667111 -55.31429149 409.88314243 -33.890625 410.30859375 C-33.13378418 410.32376541 -32.37694336 410.33893707 -31.59716797 410.35456848 C-8.59223088 410.72934923 12.51189834 409.03344349 34 400 C35.45129891 399.4457157 36.90439432 398.89610896 38.359375 398.3515625 C55.80477872 391.59640221 72.10589378 381.55813447 86 369 C87.485 367.69289063 87.485 367.69289063 89 366.359375 C97.25058999 359.02179184 105.06248796 351.36299975 111 342 C111.48315674 341.51950195 111.96631348 341.03900391 112.46411133 340.54394531 C130.67173995 322.24080696 139.35304762 291.41570225 144 267 C144.13277344 266.31969727 144.26554687 265.63939453 144.40234375 264.93847656 C146.17086586 255.43515409 146.19371216 245.88611519 146.25 236.25 C146.25942627 235.02982178 146.26885254 233.80964355 146.27856445 232.55249023 C146.25079166 224.82693827 145.49219956 217.57261381 144 210 C143.70127007 208.32692153 143.40306668 206.65374894 143.10546875 204.98046875 C140.24761796 189.79405488 135.94062867 175.88125734 129 162 C128.66983887 161.33709961 128.33967773 160.67419922 127.99951172 159.99121094 C119.20074956 142.45817594 104.30885994 114.15442997 86 105 C86 104.01 86 103.02 86 102 C87.5390625 100.4921875 87.5390625 100.4921875 89.625 98.875 C95.78353409 93.71927146 99.66261942 87.23099126 103 80 C107.30184146 80.49636632 109.90470655 83.23583097 113 86 C113.57492187 86.495 114.14984375 86.99 114.7421875 87.5 C116.84494186 89.31482534 118.92224434 91.15660398 121 93 C121.91007812 93.79277344 122.82015625 94.58554687 123.7578125 95.40234375 C131.60171185 102.32534152 138.46559447 109.83583685 145 118 C145.4626123 118.5770166 145.92522461 119.1540332 146.40185547 119.74853516 C179.93447299 162.16128497 195.23839357 218.65343106 189.02246094 272.18310547 C184.54741333 306.7135404 173.47005952 338.99652377 154 368 C153.56945312 368.64388672 153.13890625 369.28777344 152.6953125 369.95117188 C147.36295194 377.84468137 141.50310354 385.03151429 135 392 C133.87017688 393.30835048 132.74495294 394.62069073 131.625 395.9375 C125.70026666 402.73433194 119.2938552 409.6727474 112 415 C111.34 415 110.68 415 110 415 C110 415.66 110 416.32 110 417 C107.7462179 419.09690728 105.17949968 420.82178995 102.6875 422.625 C101.99720703 423.140625 101.30691406 423.65625 100.59570312 424.1875 C99.92861328 424.67476562 99.26152344 425.16203125 98.57421875 425.6640625 C97.96151123 426.11217285 97.34880371 426.5602832 96.7175293 427.02197266 C95 428 95 428 92 428 C92 428.66 92 429.32 92 430 C89.81918968 431.49968889 87.65733035 432.85767109 85.375 434.1875 C84.70001465 434.58606201 84.0250293 434.98462402 83.32958984 435.39526367 C76.70623771 439.25798535 69.92502026 442.71061538 63 446 C62.236875 446.36609375 61.47375 446.7321875 60.6875 447.109375 C36.67470542 458.20619674 9.62066206 466.18780596 -16.9296875 466.1328125 C-17.96006134 466.13376923 -18.99043518 466.13472595 -20.05203247 466.13571167 C-22.22202618 466.13638923 -24.39202196 466.13456462 -26.56201172 466.13037109 C-29.85779446 466.12502789 -33.15344026 466.13032491 -36.44921875 466.13671875 C-38.56770863 466.13605768 -40.68619843 466.13477592 -42.8046875 466.1328125 C-44.26453568 466.13584885 -44.26453568 466.13584885 -45.75387573 466.13894653 C-59.23858882 466.09345734 -71.72443945 463.76204695 -84.6875 460.1875 C-85.64503174 459.92396729 -86.60256348 459.66043457 -87.58911133 459.38891602 C-99.44052694 456.08785494 -110.92374542 452.42721686 -122 447 C-122.58861816 446.71785645 -123.17723633 446.43571289 -123.78369141 446.14501953 C-155.87373518 430.75581093 -185.31683521 408.45132027 -207 380 C-207.46043701 379.39808838 -207.92087402 378.79617676 -208.39526367 378.17602539 C-223.26703327 358.57611283 -234.51631267 337.05809167 -243 314 C-243.63035156 312.30423828 -243.63035156 312.30423828 -244.2734375 310.57421875 C-250.51602106 292.85560753 -254.04780408 272.24352576 -254.23828125 253.41796875 C-254.24798447 252.61418289 -254.25768768 251.81039703 -254.26768494 250.98225403 C-254.29256096 248.38395134 -254.30521251 245.78590987 -254.3125 243.1875 C-254.31511841 242.29861084 -254.31773682 241.40972168 -254.32043457 240.49389648 C-254.32530714 225.01445358 -253.14596744 210.19629439 -250 195 C-249.83983398 194.21351074 -249.67966797 193.42702148 -249.51464844 192.61669922 C-243.42434723 163.71039698 -230.59717601 137.25741109 -214 113 C-213.59410645 112.40558105 -213.18821289 111.81116211 -212.77001953 111.19873047 C-208.17000391 104.51807471 -208.17000391 104.51807471 -206 102 C-205.34 102 -204.68 102 -204 102 C-203.74347656 101.42636719 -203.48695313 100.85273438 -203.22265625 100.26171875 C-189.22763762 74.3731699 -151.85818074 48.61835053 -125 38 C-123.71748471 37.27015625 -122.44670134 36.51936945 -121.1875 35.75 C-115.0597124 32.27622074 -108.45220073 30.06427227 -101.85058594 27.67138672 C-91.42651195 23.88956568 -82.03460408 18.98017149 -72.69140625 13.015625 C-70.55263085 11.73137188 -68.3223203 10.90627134 -66 10 C-64.74722616 9.25464257 -63.49767859 8.50385551 -62.25 7.75 C-55.26720869 3.80167673 -47.60515092 1.45167355 -40 -1 C-39.18660156 -1.27199219 -38.37320313 -1.54398437 -37.53515625 -1.82421875 C-26.0406952 -5.03356332 -11.07238249 -3.9078997 0 0 Z" fill="#3a3630" transform="translate(522,258)"/>
+            <path d="M0 0 C3.43812276 1.39398247 5.79069253 3.00292338 8 6 C9.09629136 9.58469875 9.09802802 12.41543234 8 16 C5.52060264 19.16776475 2.57381692 21.21309154 -1 23 C-5.70777 23.39231417 -8.07079697 23.47336758 -12.3125 21.3125 C-15.14126219 18.87844881 -16.68136405 17.49050691 -18 14 C-18.18723846 10.8339679 -17.94666509 8.03272948 -17 5 C-11.9356163 -0.19423969 -7.024677 -1.03123892 0 0 Z" fill="#f5f0e8" transform="translate(529,288)"/>
+          </g>
+        </svg>
+      </div>
+      <div class="arcana-name">The World</div>
+      <div class="arcana-effect">Tint</div>
+    </div>
+
+    <!-- 0 — The Fool → Vanish -->
+    <div class="arcana-card" id="arc-fade" onclick="toggleArcana('fade')">
+      <div class="arcana-numeral">0</div>
+      <div class="arcana-art">
+        <svg id="arcana-fool-svg" width="70" height="73" viewBox="-15 -10 326 328" xmlns="http://www.w3.org/2000/svg">
+          <g transform="rotate(-0.5, 148, 154)">
+            <path id="arcana-fool-face" fill="#3a3630" fill-rule="evenodd" d="M 133.50 300.32 C115.17,296.22 99.38,286.65 81.93,269.08 C54.82,241.79 36.01,201.94 27.95,154.70 C22.00,119.89 21.57,84.52 26.63,47.00 C28.39,33.92 29.89,30.63 35.38,27.82 C40.06,25.42 42.60,25.76 54.82,30.48 C73.94,37.87 100.09,44.58 118.89,46.93 C160.40,52.12 196.96,47.00 246.23,29.08 C253.57,26.41 256.90,26.46 261.10,29.29 C265.68,32.37 266.78,35.03 268.46,47.16 C274.92,93.83 271.56,144.47 259.25,186.00 C242.11,243.86 204.43,288.83 164.59,298.98 C157.11,300.89 139.44,301.65 133.50,300.32 Z M 165.28 244.09 C175.57,240.53 183.25,235.77 190.50,228.48 C198.23,220.70 203.17,212.39 206.04,202.35 C208.23,194.70 209.37,194.86 195.00,200.79 C177.83,207.89 169.25,209.45 147.50,209.46 C131.10,209.46 127.27,209.15 119.50,207.21 C109.53,204.71 99.04,200.97 91.65,197.28 C88.98,195.95 86.61,195.06 86.37,195.30 C85.35,196.31 92.10,213.58 95.55,218.79 C104.33,232.05 118.76,242.08 134.00,245.51 C142.60,247.45 157.53,246.77 165.28,244.09 Z M 190.62 128.41 C203.82,125.30 221.95,127.60 235.42,134.10 C237.58,135.14 239.49,135.85 239.65,135.68 C239.82,135.51 238.96,132.73 237.73,129.51 C231.72,113.71 211.83,101.73 196.94,104.92 C183.31,107.84 172.39,118.25 170.10,130.50 C169.64,132.94 169.46,135.12 169.68,135.35 C169.91,135.58 173.17,134.47 176.92,132.90 C180.68,131.32 186.84,129.30 190.62,128.41 Z M 59.97 133.02 C64.98,130.46 76.83,127.32 84.59,126.49 C92.29,125.67 107.13,128.13 115.42,131.61 C125.69,135.91 125.33,135.93 124.50,131.00 C122.81,120.97 116.59,112.90 106.54,107.67 C101.16,104.87 99.57,104.53 91.98,104.52 C84.39,104.50 82.74,104.85 76.93,107.71 C66.53,112.83 58.56,122.14 55.51,132.75 C54.72,135.50 55.06,135.52 59.97,133.02 Z"/>
+          </g>
+        </svg>
+      </div>
+      <div class="arcana-name">The Fool</div>
+      <div class="arcana-effect">Fade</div>
+    </div>
+
+  </div>
+  <button class="arcana-start" onclick="startFromArcana()">Start</button>
+</div>
+
+<!-- ── Play Panel ── -->
+<div class="panel active" id="panel-play">
+
+<main id="main-game">
+  <div class="board-container" id="board-container">
+    <div id="board" style="position:relative;"></div>
+  </div>
+
+  <!-- Stats below board, like the reference -->
+  <div class="below-board">
+    <div class="deck-count" id="deck-info"></div>
+    <div class="below-divider"></div>
+    <div class="below-timer" id="timer">0:00</div>
+    <div class="below-score-row">
+      <span class="below-score-label">Sets</span>
+      <span class="below-score-value" id="score">0</span>
+    </div>
+    <div class="modifier-pills" id="modifier-pills"></div>
+    <div class="below-divider"></div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-primary" onclick="newGame()">New Game</button>
+      <button class="btn" onclick="showArcana()">Modifiers</button>
+    </div>
+  </div>
+
+  <div class="end-screen" id="end-screen">
+    <div class="end-title">Complete!</div>
+    <div class="end-stats">
+      <div class="stat">
+        <div class="end-stat-label">Sets Found</div>
+        <div class="end-stat-value" id="final-score">0</div>
+      </div>
+      <div class="stat">
+        <div class="end-stat-label">Time</div>
+        <div class="end-stat-value" id="final-time">0:00</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="newGame()">Play Again</button>
+      <button class="btn" onclick="showArcana()">Modifiers</button>
+    </div>
+  </div>
+  <div class="history-panel" id="history-panel" style="display:none;">
+    <div class="history-label">History</div>
+    <div class="history-list" id="history-list"></div>
+  </div>
+</main>
+
+</div><!-- end #panel-play -->
+
+<!-- ── Leaderboard Panel ── -->
+<div class="panel" id="panel-leaderboard">
+  <div class="lb-panel-body">
+    <div class="lb-filter-label">filter by modifiers</div>
+    <div class="lb-filter-cards" id="lb-filter-cards"></div>
+    <div class="lb-list" id="lb-list"></div>
+  </div>
+</div>
+
+<!-- ── Player Panel ── -->
+<div class="panel" id="panel-player">
+  <div class="player-panel-body">
+    <div class="player-search-row">
+      <input class="player-search-input" id="player-search-input" type="text" placeholder="search player name…" autocomplete="off" />
+      <button class="btn btn-primary" onclick="playerSearch()">Search</button>
+    </div>
+    <div id="player-results-area"></div>
+  </div>
+</div>
+
+<script>
+// ── Panel toggle ──────────────────────────────────────────────────────────────
+
+// Color animation state (hue arcana modifier)
+let animOn    = false;
+let animHue   = 0;
+let animSpeed = 120;
+let animFrame = null;
+let animLast  = null;
+
+const CARD_COLORS = ['#9333ea', '#16a34a', '#dc2626'];
+
+// Convert sRGB [0,1] → linear
+function toLinear(c) { return c <= 0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }
+// sRGB hex → OKLCH {l, c, h}
+function hexToOklch(hex) {
+  let r = toLinear(parseInt(hex.slice(1,3),16)/255);
+  let g = toLinear(parseInt(hex.slice(3,5),16)/255);
+  let b = toLinear(parseInt(hex.slice(5,7),16)/255);
+  // sRGB → OKLab (via XYZ-D65)
+  const l_ = Math.cbrt(0.4122214708*r + 0.5363325363*g + 0.0514459929*b);
+  const m_ = Math.cbrt(0.2119034982*r + 0.6806995451*g + 0.1073969566*b);
+  const s_ = Math.cbrt(0.0883024619*r + 0.2817188376*g + 0.6299787005*b);
+  const L  = 0.2104542553*l_ + 0.7936177850*m_ - 0.0040720468*s_;
+  const a  = 1.9779984951*l_ - 2.4285922050*m_ + 0.4505937099*s_;
+  const bv = 0.0259040371*l_ + 0.7827717662*m_ - 0.8086757660*s_;
+  const C  = Math.sqrt(a*a + bv*bv);
+  const H  = Math.atan2(bv, a) * 180 / Math.PI;
+  return { l: L, c: C, h: ((H % 360) + 360) % 360 };
+}
+// OKLCH → CSS oklch() string with shifted hue
+function shiftHue(hex, shift) {
+  const { l, c, h } = hexToOklch(hex);
+  const newH = ((h + shift) % 360 + 360) % 360;
+  return `oklch(${l.toFixed(4)} ${c.toFixed(4)} ${newH.toFixed(2)})`;
+}
+
+function setGradient(i, color) {
+  const g = document.getElementById(`grad-${i}`);
+  if (!g) return;
+  g.querySelectorAll('stop').forEach(s => s.setAttribute('stop-color', color));
+}
+
+function applyColors() {
+  [0, 1, 2].forEach(i => {
+    const col = animOn ? shiftHue(CARD_COLORS[i], animHue) : CARD_COLORS[i];
+    setGradient(i, col);
+  });
+}
+
+function startAnim() {
+  if (animFrame) return;
+  animLast  = null;
+  animFrame = requestAnimationFrame(animTick);
+}
+
+function stopAnim() {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  animLast = null;
+  animHue  = 0;
+  applyColors();
+}
+
+function animTick(ts) {
+  if (animLast !== null) {
+    const dt = (ts - animLast) / 1000;
+    animHue = ((animHue + animSpeed * dt) % 360 + 360) % 360;
+    applyColors();
+  }
+  animLast  = ts;
+  animFrame = requestAnimationFrame(animTick);
+}
+
+// ─── Game Logic ───────────────────────────────────────────────────────────────
+
+// Static path strings for each shape (fallback when morph is off)
+const SHAPE_PATHS = [
+  // squiggle
+  "m67.892902,12.746785c43.231313,-6.717223 107.352741,6.609823 121.028973,58.746408c13.676233,52.136585 -44.848649,161.467192 -45.07116,204.650732c4.566246,56.959708 83.805481,87.929227 22.329944,105.806022c-61.475536,17.876795 -126.122496,-1.855045 -143.73294,-41.933823c-17.610444,-40.07878 49.274638,-120.109409 46.14822,-188.091997c-3.126418,-67.982588 -21.873669,-70.257464 -49.613153,-80.177084c-27.739485,-9.919618 5.678801,-52.283035 48.910115,-59.000258z",
+  // oval
+  "m11.49999,95.866646c0,-44.557076 37.442923,-81.999998 82.000002,-81.999998l12.000015,0c44.557076,0 81.999992,37.442923 81.999992,81.999998l0,206.133354c0,44.557098 -37.442917,82 -81.999992,82l-12.000015,0c-44.557079,0 -82.000002,-37.442902 -82.000002,-82l0,-206.133354z",
+  // diamond
+  "m100 10-90 190 90 190 90-190-90-190z",
+];
+const SHAPES  = ['squiggle', 'oval', 'diamond'];
+const MASKS   = ['', '', 'url(#mask-stripes)', 'url(#mask-checkers)'];
+const BORDERS = ['3px solid', '4px dotted', '6px double'];
+
+function makeCards(symbols, traits) {
+  if (traits === 1) return symbols;
+  return makeCards(symbols, traits - 1).flatMap(lhs => symbols.map(s => lhs + s));
+}
+
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function generateDeck() {
+  return shuffleArray(makeCards(['0','1','2'], 4));
+}
+
+function cardTraits(card) {
+  const z = '0'.charCodeAt(0);
+  return {
+    color:  card.charCodeAt(0) - z,
+    shape:  card.charCodeAt(1) - z,
+    shade:  card.charCodeAt(2) - z,
+    number: card.charCodeAt(3) - z,
+  };
+}
+
+function isSet(a, b, c) {
+  for (let i = 0; i < 4; i++)
+    if ((a.charCodeAt(i) + b.charCodeAt(i) + c.charCodeAt(i)) % 3 !== 0) return false;
+  return true;
+}
+
+function conjugateCard(a, b) {
+  const z = '0'.charCodeAt(0);
+  let c = '';
+  for (let i = 0; i < a.length; i++) {
+    const an = a.charCodeAt(i), bn = b.charCodeAt(i);
+    c += String.fromCharCode(an === bn ? an : z * 3 + 3 - an - bn);
+  }
+  return c;
+}
+
+function findSetOnBoard(board) {
+  const s = new Set(board);
+  for (let i = 0; i < board.length; i++)
+    for (let j = i + 1; j < board.length; j++) {
+      const c = conjugateCard(board[i], board[j]);
+      if (s.has(c) && c !== board[i] && c !== board[j]) return [board[i], board[j], c];
+    }
+  return null;
+}
+
+// ─── Game State ───────────────────────────────────────────────────────────────
+
+let deck = [], board = [], selected = [];
+let score = 0, startTime = null, timerInterval = null;
+let hintCards = [], gameOver = false;
+let gameHistory = []; // [{time, cards:[a,b,c]}]
+let initialDeck = []; // saved at game start for replay
+
+function newGame() {
+  // Cancel any running spring animation
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; lastTs = null; }
+  // Reset morph engine (sprites are about to be wiped, live paths go with them)
+  if (morphRaf) { cancelAnimationFrame(morphRaf); morphRaf = null; }
+  morphPhase = 'hold'; morphPhaseStart = null; morphShapeIdx = 0;
+  // Reset clone engine
+  if (cloneRaf) { cancelAnimationFrame(cloneRaf); cloneRaf = null; }
+  clonePhaseStart = null;
+  // Reset fill engine
+  if (fillRaf) { cancelAnimationFrame(fillRaf); fillRaf = null; }
+  fillPhaseStart = null;
+  // Wipe all sprites
+  sprites.clear();
+  document.getElementById('board').innerHTML = '';
+
+  deck = generateDeck();
+  initialDeck = [...deck]; // save for replay
+  board = []; selected = []; score = 0; hintCards = []; gameOver = false;
+  gameHistory = [];
+  document.getElementById('history-list').innerHTML = '';
+  document.getElementById('history-panel').style.display = 'none';
+  refillBoard();
+
+  const container = document.getElementById('board-container');
+  container.style.display = '';
+  document.getElementById('end-screen').classList.remove('show');
+  document.getElementById('score').textContent = '0';
+  clearInterval(timerInterval);
+  startTime = Date.now();
+  timerInterval = setInterval(updateTimer, 500);
+  renderBoard();
+  updateDeckInfo();
+  // Restart morph if it was on
+  if (morphOn) startMorph();
+  // Restart clone if it was on
+  if (cloneOn) startClone();
+  // Restart fill if it was on
+  if (fillOn) startFill();
+  // Restart hue if it was on
+  if (animOn) startAnim();
+  // Restart fade if it was on
+  if (fadeOn) startFade();
+}
+
+function refillBoard() {
+  const target = Math.max(12, board.length);
+  while (board.length < target && deck.length > 0) board.push(deck.pop());
+  while (!findSetOnBoard(board) && deck.length > 0) {
+    board.push(deck.pop()); board.push(deck.pop()); board.push(deck.pop());
+  }
+}
+
+// ─── Spring engine (matches @react-spring tension:64 friction:14) ─────────────
+// Vanilla JS port of react-spring's Euler-integrated spring physics.
+
+const TENSION  = 64;
+const FRICTION = 14;
+const MASS     = 1;
+const PRECISION = 0.005;
+
+class Spring {
+  constructor(from, to) {
+    this.pos = from;
+    this.vel = 0;
+    this.to  = to;
+  }
+  step(dt) {
+    const force = -TENSION * (this.pos - this.to) - FRICTION * this.vel;
+    this.vel += (force / MASS) * dt;
+    this.pos += this.vel * dt;
+  }
+  get idle() {
+    return Math.abs(this.pos - this.to) < PRECISION && Math.abs(this.vel) < PRECISION;
+  }
+  get value() { return this.pos; }
+}
+
+// ─── Board layout ─────────────────────────────────────────────────────────────
+
+const GAP = 8;
+
+function getLayout() {
+  const container = document.getElementById('board-container');
+  const W = container.clientWidth || 860;
+  const cols = W < 560 ? 3 : 4;
+  const cardW = Math.floor((W - GAP * (cols + 1)) / cols);
+  const cardH = Math.round(cardW / 1.6);
+  return { W, cols, cardW, cardH };
+}
+
+function cardTarget(index, layout) {
+  const { W, cols, cardW, cardH } = layout;
+  const col = index % cols;
+  const row = Math.floor(index / cols);
+  return {
+    x: GAP + col * (cardW + GAP),
+    y: GAP + row * (cardH + GAP),
+  };
+}
+
+function boardHeight(n, layout) {
+  const { cols, cardH } = layout;
+  const rows = Math.ceil(n / cols);
+  return rows * cardH + (rows + 1) * GAP;
+}
+
+// ─── Sprite registry ──────────────────────────────────────────────────────────
+// Each card on the board has one sprite (DOM + springs).
+// Sprites survive re-renders; we just re-target the springs.
+
+const sprites = new Map(); // card string → sprite object
+let   rafId   = null;
+
+function getOrCreateSprite(card, entering, layout) {
+  if (sprites.has(card)) return sprites.get(card);
+
+  const { W, cardW, cardH } = layout;
+  // create DOM
+  const el = document.createElement('div');
+  el.className = 'card-sprite moving';
+
+  const inner = document.createElement('div');
+  inner.className = 'set-card';
+  inner.dataset.card = card;
+  inner.innerHTML = cardSVG(card, cardH * 0.54);
+  inner.addEventListener('click', () => onCardClick(card));
+  el.appendChild(inner);
+
+  el.style.width  = cardW + 'px';
+  el.style.height = cardH + 'px';
+
+  document.getElementById('board').appendChild(el);
+
+  // Springs: enter from off-screen left
+  const startX = entering ? -cardW - GAP : 0;
+  const startY = entering ? 0 : 0;
+
+  const sprite = {
+    card,
+    el,
+    inner,
+    sx: new Spring(startX, 0),  // will be re-targeted immediately
+    sy: new Spring(startY, 0),
+    so: new Spring(entering ? 0 : 1, 1),
+    leaving: false,
+    settled: false,
+  };
+  sprites.set(card, sprite);
+  return sprite;
+}
+
+function applySprite(sprite) {
+  const x = sprite.sx.value;
+  const y = sprite.sy.value;
+  const o = sprite.so.value;
+  sprite.el.style.transform = `translate(${x}px,${y}px)`;
+  sprite.el.style.opacity   = o;
+}
+
+let lastTs = null;
+
+function tick(ts) {
+  if (lastTs === null) lastTs = ts;
+  const dt = Math.min((ts - lastTs) / 1000, 0.064); // cap at ~4 frames to avoid huge jumps
+  lastTs = ts;
+
+  let anyActive = false;
+
+  for (const [card, sprite] of sprites) {
+    const { sx, sy, so } = sprite;
+    sx.step(dt); sy.step(dt); so.step(dt);
+    applySprite(sprite);
+
+    const idle = sx.idle && sy.idle && so.idle;
+    if (!idle) { anyActive = true; }
+
+    if (sprite.leaving && idle) {
+      // fully off-screen — remove
+      sprite.el.remove();
+      sprites.delete(card);
+    } else if (!sprite.leaving && idle) {
+      // settled — demote to static
+      sprite.el.className = 'card-sprite';
+    } else {
+      anyActive = true;
+    }
+  }
+
+  if (anyActive) {
+    rafId = requestAnimationFrame(tick);
+  } else {
+    rafId = null;
+    lastTs = null;
+  }
+}
+
+function ensureRaf() {
+  if (!rafId) {
+    lastTs = null;
+    rafId = requestAnimationFrame(tick);
+  }
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────────────
+
+function currentMorphPath(shapeIdx) {
+  // Returns the live morphed path string for a shape index, or null if morph is off
+  if (!morphOn) return null;
+  return morphCurrentPaths[shapeIdx] || null;
+}
+
+function cardSVG(card, size) {
+  const { color, shape, shade, number } = cardTraits(card);
+  const mask    = MASKS[shade];
+  const count   = number + 1;
+  const w = size * 0.5, h = size, m = size * 0.08;
+  const gradRef = `url(#grad-${color})`;
+  // Use the live morph path if available, else fall back to static shape path
+  const pathD = morphCurrentPaths[shape] || SHAPE_PATHS[shape];
+  // Always render 3 symbols — phantom extras (i >= count) start hidden so
+  // the flex layout stays correct; clone animation reveals/positions them.
+  let symbols = '';
+  for (let i = 0; i < 3; i++) {
+    const phantom = i >= count;
+    const svgStyle = `margin:0 ${m}px;flex-shrink:0;${phantom ? 'display:none;' : ''}`;
+
+    {
+      // All shades use the animated clipPath/stripe structure; fillTick drives
+      // them at phase offsets so each shade is anchored to its natural appearance:
+      //   shade=2 (stripe) → +0       home ≈ t=0.25  (stripe-hold window)
+      //   shade=0 (solid)  → +1/3 cy  home ≈ t=0.58  (solid-hold window)
+      //   shade=1 (empty)  → +2/3 cy  home ≈ t=0.92  (empty-hold window)
+      const clipId = `fc-${card}-${i}`;
+      let stripeRects = '';
+      // Initial y/height set to the correct static appearance for this shade;
+      // fillTick will take over once the animation is running.
+      const initHH = shade === 0 ? FILL_FULL : shade === 2 ? FILL_HALF : 0;
+      const initCH = shade === 1 ? 400 : 0;
+      for (let si = 0; si < 21; si++) {  // 21 stripes: 20 cover 0–394, 21st covers bottom gap to 400
+        const cy = si * 20 + 4;          // centre of stripe i (top-anchored, period=20)
+        stripeRects += `<rect data-fill-cy="${cy}" data-fill-shape="${shape}" data-fill-shade="${shade}" x="0" y="${cy - initHH}" width="200" height="${initHH * 2}" fill="${gradRef}"/>`;
+      }
+      symbols += `<svg width="${w}" height="${h}" viewBox="0 0 200 400" style="${svgStyle}" data-clone="${number}-${i}">
+        <defs><clipPath id="${clipId}"><path data-shape="${shape}" d="${pathD}"/></clipPath></defs>
+        <g clip-path="url(#${clipId})">
+          ${stripeRects}
+          <rect data-fill-curtain data-fill-shape="${shape}" data-fill-shade="${shade}" x="0" y="0" width="200" height="${initCH}" fill="var(--card-bg)"/>
+        </g>
+        <path data-shape="${shape}" d="${pathD}" fill="none" stroke="${gradRef}" stroke-width="18"/>
+      </svg>`;
+    }
+  }
+  return `<div class="card-symbols" style="height:100%;">${symbols}</div>`;
+}
+
+function renderBoard() {
+  const layout = getLayout();
+  const { W, cardW, cardH } = layout;
+  const h = boardHeight(board.length, layout);
+
+  // Size the container
+  const container = document.getElementById('board-container');
+  container.style.height = h + 'px';
+
+  // Mark all existing sprites as potentially stale
+  const onBoard = new Set(board);
+
+  // Kick off leaving animations for removed cards
+  for (const [card, sprite] of sprites) {
+    if (!onBoard.has(card) && !sprite.leaving) {
+      sprite.leaving = true;
+      sprite.el.className = 'card-sprite leaving';
+      // exit: fly off to the right
+      sprite.sx.to = W + cardW;
+      sprite.sy.to = h / 2 - cardH / 2;
+      sprite.so.to = 0;
+    }
+  }
+
+  // Enter / update cards on board
+  board.forEach((card, i) => {
+    const { x, y } = cardTarget(i, layout);
+    const isNew = !sprites.has(card);
+    const sprite = getOrCreateSprite(card, isNew, layout);
+
+    if (isNew) {
+      // Enter from off-screen left, vertically centred
+      sprite.sx.pos = -cardW - GAP;
+      sprite.sx.to  = x;
+      sprite.sy.pos = h / 2 - cardH / 2;
+      sprite.sy.to  = y;
+      sprite.so.pos = 0;
+      sprite.so.to  = 1;
+      sprite.leaving = false;
+      sprite.el.className = 'card-sprite moving';
+    } else {
+      // Reposition
+      sprite.sx.to = x;
+      sprite.sy.to = y;
+      sprite.so.to = 1;
+      sprite.leaving = false;
+      if (!sprite.sx.idle || !sprite.sy.idle) {
+        sprite.el.className = 'card-sprite moving';
+      }
+    }
+
+    // Sync selected / hint visuals on the inner card
+    const inner = sprite.inner;
+    inner.classList.toggle('selected', selected.includes(card));
+    inner.style.outline = hintCards.includes(card) ? '2px dashed #c084fc' : '';
+  });
+
+  ensureRaf();
+}
+
+// ─── Interaction ─────────────────────────────────────────────────────────────
+
+function onCardClick(card) {
+  if (gameOver) return;
+  hintCards = [];
+  if (selected.includes(card)) {
+    selected = selected.filter(c => c !== card);
+    const sprite = sprites.get(card);
+    if (sprite) sprite.inner.classList.remove('selected');
+      return;
+  }
+  if (selected.length >= 3) return;
+  selected.push(card);
+  const sprite = sprites.get(card);
+  if (sprite) sprite.inner.classList.add('selected');
+  if (selected.length === 3) checkSelection();
+}
+
+function checkSelection() {
+  const [a, b, c] = selected;
+  const valid = isSet(a, b, c);
+  for (const [, sprite] of sprites) sprite.inner.classList.remove('selected');
+  if (valid) {
+    score++;
+    document.getElementById('score').textContent = score;
+    const elapsed = startTime ? (Date.now() - startTime) : 0;
+    gameHistory.push({ time: elapsed, cards: [...selected] });
+    addHistoryEntry(gameHistory.length, [...selected], elapsed);
+    document.getElementById('history-panel').style.display = '';
+    board = board.filter(card => !selected.includes(card));
+    selected = [];
+    refillBoard();
+    if (board.length === 0 || (!findSetOnBoard(board) && deck.length === 0)) { endGame(); return; }
+    renderBoard();
+    updateDeckInfo();
+  } else {
+    flashCards(selected, 'flash-error');
+    setTimeout(() => {
+      selected = [];
+      for (const [, sprite] of sprites) sprite.inner.classList.remove('selected');
+    }, 700);
+  }
+}
+
+function flashCards(cards, cls) {
+  for (const card of cards) {
+    const sprite = sprites.get(card);
+    if (!sprite) continue;
+    sprite.inner.classList.add(cls);
+    setTimeout(() => sprite.inner.classList.remove(cls), 500);
+  }
+}
+
+function showHint() {
+  if (gameOver) return;
+  const hint = findSetOnBoard(board);
+  if (!hint) return;
+  hintCards = hint;
+  // just update outlines without full re-render
+  for (const [card, sprite] of sprites) {
+    sprite.inner.style.outline = hintCards.includes(card) ? '2px dashed #c084fc' : '';
+  }
+}
+
+function updateDeckInfo() {
+  const setsOnBoard = countSetsOnBoard(board);
+  document.getElementById('deck-info').textContent =
+    `${setsOnBoard} set${setsOnBoard !== 1 ? 's' : ''} on board · ${deck.length} card${deck.length !== 1 ? 's' : ''} in deck`;
+}
+
+function countSetsOnBoard(cards) {
+  let count = 0;
+  for (let i = 0; i < cards.length; i++)
+    for (let j = i + 1; j < cards.length; j++)
+      for (let k = j + 1; k < cards.length; k++)
+        if (isSet(cards[i], cards[j], cards[k])) count++;
+  return count;
+}
+
+function updateTimer() {
+  if (!startTime) return;
+  const secs = Math.floor((Date.now() - startTime) / 1000);
+  const m = Math.floor(secs / 60), s = secs % 60;
+  document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function formatTime() {
+  return startTime ? document.getElementById('timer').textContent : '0:00';
+}
+
+function endGame() {
+  gameOver = true;
+  clearInterval(timerInterval);
+  // fly all remaining cards off-screen then hide
+  const layout = getLayout();
+  for (const [, sprite] of sprites) {
+    sprite.leaving = true;
+    sprite.el.className = 'card-sprite leaving';
+    sprite.sx.to = layout.W + 100;
+    sprite.so.to = 0;
+  }
+  ensureRaf();
+  const finalMs = startTime ? (Date.now() - startTime) : 0;
+  setTimeout(() => {
+    document.getElementById('board-container').style.display = 'none';
+    document.getElementById('final-score').textContent = score;
+    document.getElementById('final-time').textContent  = formatTime();
+    document.getElementById('end-screen').classList.add('show');
+    // Record to leaderboard
+    const activeMods = Object.keys(arcanaSelected).filter(k => arcanaSelected[k]);
+    lbRecord(finalMs, activeMods);
+  }, 600);
+}
+
+// ─── Reset & History ─────────────────────────────────────────────────────────
+
+function resetGame() {
+  // Same deck, same board state — just reset score, timer, and history
+  if (gameOver) { newGame(); return; }
+  score = 0;
+  gameHistory = [];
+  startTime = Date.now();
+  clearInterval(timerInterval);
+  timerInterval = setInterval(updateTimer, 500);
+  document.getElementById('score').textContent = '0';
+  document.getElementById('timer').textContent = '0:00';
+  document.getElementById('history-list').innerHTML = '';
+  document.getElementById('history-panel').style.display = 'none';
+}
+
+function histCardSVG(card) {
+  const { color, shape, shade, number } = cardTraits(card);
+  const count = number + 1;
+  const pathD = SHAPE_PATHS[shape];
+  const grad  = `url(#grad-${color})`;
+
+  // Landscape: symbols sit side by side in a wide viewBox (400h × 200w each)
+  const sw = 200, sh = 400, gap = 24, pad = 20;
+  const totalW = 3 * sw + 2 * gap + pad * 2;  // always 3-wide so shape scale is constant
+  const totalH = sh + pad * 2;
+
+  const usedW  = count * sw + (count - 1) * gap;
+  const startX = (totalW - usedW) / 2;
+
+  let symbols = '';
+  for (let i = 0; i < count; i++) {
+    const tx = startX + i * (sw + gap);
+    const g  = `translate(${tx},${pad})`;
+    if (shade === 0) {
+      symbols += `<g transform="${g}"><path d="${pathD}" fill="${grad}"/></g>`;
+    } else if (shade === 1) {
+      symbols += `<g transform="${g}"><path d="${pathD}" fill="none" stroke="${grad}" stroke-width="22"/></g>`;
+    } else {
+      const clipId = `hc-${card}-${i}`;
+      let stripes = '';
+      for (let si = 0; si < 20; si++) stripes += `<rect x="0" y="${si*20}" width="200" height="10" fill="${grad}"/>`;
+      symbols += `<g transform="${g}"><defs><clipPath id="${clipId}"><path d="${pathD}"/></clipPath></defs><g clip-path="url(#${clipId})">${stripes}</g><path d="${pathD}" fill="none" stroke="${grad}" stroke-width="22"/></g>`;
+    }
+  }
+
+  // viewBox is landscape: totalW wide, totalH tall — but card CSS is landscape too so it fits
+  return `<svg viewBox="0 0 ${totalW} ${totalH}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">${symbols}</svg>`;
+}
+
+function addHistoryEntry(n, cards, elapsedMs) {
+  const list = document.getElementById('history-list');
+  const secs = Math.floor(elapsedMs / 1000);
+  const m = Math.floor(secs / 60), s = secs % 60;
+  const timeStr = `${m}:${s.toString().padStart(2,'0')}`;
+
+  const entry = document.createElement('div');
+  entry.className = 'history-entry';
+
+  const num = document.createElement('span');
+  num.className = 'history-num';
+  num.textContent = n;
+
+  const cardsDiv = document.createElement('div');
+  cardsDiv.className = 'history-cards';
+
+  for (const card of cards) {
+    const hc = document.createElement('div');
+    hc.className = 'hist-card';
+    hc.innerHTML = histCardSVG(card);
+    cardsDiv.appendChild(hc);
+  }
+
+  const time = document.createElement('span');
+  time.className = 'history-time';
+  time.textContent = timeStr;
+
+  entry.appendChild(num);
+  entry.appendChild(cardsDiv);
+  entry.appendChild(time);
+  list.appendChild(entry);
+}
+
+// Handle window resize — reflow card positions
+window.addEventListener('resize', () => {
+  if (board.length) renderBoard();
+});
+
+// ─── Shape Morph Engine ──────────────────────────────────────────────────────
+// morphCurrentPaths[shapeIdx] = current 'd' string while morph is running.
+// The morph loop just updates these strings + calls updateAllShapePaths().
+// Cards emit inline <path data-shape="N"> so we can querySelectorAll and 
+// blast every matching path in one shot — no per-sprite logic needed.
+
+const MORPH_SHAPES = [
+  { // squiggle
+    start: [67.892902, 12.746785],
+    segs: [
+      [89.5085585,9.3881735,116.3467438,11.0406292,139.4905439,20.049811],
+      [162.634344,29.0589928,182.083759,45.4249005,188.921875,71.493193],
+      [202.598108,123.629778,144.073226,232.960385,143.850715,276.143925],
+      [148.416961,333.103633,227.656196,364.073152,166.180659,381.949947],
+      [104.705123,399.826742,40.058163,380.094902,22.447719,340.016124],
+      [4.837275,299.937344,71.722357,219.906715,68.595939,151.924127],
+      [65.469521,83.941539,46.722270,81.666663,18.982786,71.747043],
+      [-8.756699,61.827425,24.661587,19.464008,67.892901,12.746785],
+    ]
+  },
+  { // oval
+    start: [11.49999, 95.866646],
+    segs: [
+      [11.49999,51.30957,48.942913,13.866648,93.499992,13.866648],
+      [97.499997,13.866648,101.500002,13.866648,105.500007,13.866648],
+      [150.057083,13.866648,187.499999,51.309571,187.499999,95.866646],
+      [187.499999,164.577764,187.499999,233.288882,187.499999,302],
+      [187.499999,346.557098,150.057082,384,105.500007,384],
+      [101.500002,384,97.499997,384,93.499992,384],
+      [48.942913,384,11.499990,346.557098,11.499990,302],
+      [11.499990,233.288882,11.499990,164.577764,11.499990,95.866646],
+    ]
+  },
+  { // diamond
+    start: [100, 10],
+    segs: [
+      [85,41.6666667,70,73.3333333,55,105],
+      [40,136.6666667,25,168.3333333,10,200],
+      [25,231.6666667,40,263.3333333,55,295],
+      [70,326.6666667,85,358.3333333,100,390],
+      [115,358.3333333,130,326.6666667,145,295],
+      [160,263.3333333,175,231.6666667,190,200],
+      [175,168.3333333,160,136.6666667,145,105],
+      [130,73.3333333,115,41.6666667,100,10],
+    ]
+  },
+];
+
+// Live path strings — updated every rAF tick when morph is on
+// Index = shape index (0=squiggle, 1=oval, 2=diamond)
+const morphCurrentPaths = [null, null, null];
+
+let morphOn         = false;
+let morphHold       = 500;
+let morphDuration   = 500;
+let morphRaf        = null;
+let morphPhase      = 'hold';
+let morphPhaseStart = null;
+let morphShapeIdx   = 0; // which shape we're currently on/morphing FROM
+
+function morphEase(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+function morphBuildPath(start, segs) {
+  let d = `M ${start[0]},${start[1]}`;
+  for (const [x1,y1,x2,y2,ex,ey] of segs) d += ` C ${x1},${y1} ${x2},${y2} ${ex},${ey}`;
+  return d + ' Z';
+}
+
+function morphLerp(a, b, t) {
+  return {
+    start: [a.start[0]+(b.start[0]-a.start[0])*t, a.start[1]+(b.start[1]-a.start[1])*t],
+    segs: a.segs.map((sA,i) => sA.map((v,j) => v+(b.segs[i][j]-v)*t)),
+  };
+}
+
+// Blast the new path string to every matching <path data-shape="N"> on the board
+function updateAllShapePaths(shapeIdx, pathStr) {
+  document.querySelectorAll(`[data-shape="${shapeIdx}"]`).forEach(p => p.setAttribute('d', pathStr));
+  // Also update the tiny preview (shape 0 = squiggle drives the preview)
+  if (shapeIdx === morphShapeIdx) {
+    const prev = document.getElementById('morph-preview-path');
+    if (prev) prev.setAttribute('d', pathStr);
+  }
+}
+
+function morphTick(ts) {
+  if (morphPhaseStart === null) morphPhaseStart = ts;
+  const elapsed = ts - morphPhaseStart;
+
+  // Each shape type is offset by 1/3 of the total cycle so they all morph
+  // simultaneously but stay visually distinct from one another.
+  const stepDuration = morphHold + morphDuration;
+  const totalPeriod  = stepDuration * 3;
+  const cycleOffset  = totalPeriod / 3;
+
+  for (let si = 0; si < 3; si++) {
+    const tShape   = (elapsed + si * cycleOffset) % totalPeriod;
+    const stepIdx  = Math.floor(tShape / stepDuration);  // which transition 0,1,2
+    const tStep    = tShape - stepIdx * stepDuration;    // time within this step
+
+    const fromIdx  = stepIdx % 3;
+    const toIdx    = (stepIdx + 1) % 3;
+    const from     = MORPH_SHAPES[fromIdx];
+    const to       = MORPH_SHAPES[toIdx];
+
+    let pathStr;
+    if (tStep < morphHold) {
+      pathStr = morphBuildPath(from.start, from.segs);
+    } else {
+      const t  = Math.min((tStep - morphHold) / morphDuration, 1);
+      const et = morphEase(t);
+      pathStr  = morphBuildPath(morphLerp(from, to, et).start, morphLerp(from, to, et).segs);
+    }
+
+    morphCurrentPaths[si] = pathStr;
+    document.querySelectorAll(`[data-shape="${si}"]`).forEach(p => p.setAttribute('d', pathStr));
+  }
+
+  const prev = document.getElementById('morph-preview-path');
+  if (prev) prev.setAttribute('d', morphCurrentPaths[0]);
+
+  morphRaf = requestAnimationFrame(morphTick);
+}
+
+function startMorph() {
+  if (morphRaf) return;
+  morphPhaseStart = null;
+  morphRaf = requestAnimationFrame(morphTick);
+}
+
+function stopMorph() {
+  if (morphRaf) { cancelAnimationFrame(morphRaf); morphRaf = null; }
+  // Reset all shape paths to static
+  morphCurrentPaths.fill(null);
+  document.querySelectorAll('[data-shape]').forEach(p => {
+    const si = parseInt(p.dataset.shape);
+    p.setAttribute('d', SHAPE_PATHS[si]);
+  });
+  const prev = document.getElementById('morph-preview-path');
+  if (prev) prev.setAttribute('d', morphBuildPath(MORPH_SHAPES[0].start, MORPH_SHAPES[0].segs));
+  morphPhase = 'hold'; morphPhaseStart = null; morphShapeIdx = 0;
+}
+
+function onMorphToggle() {
+  morphOn = document.getElementById('morph-toggle').checked;
+  if (morphOn) startMorph(); else stopMorph();
+}
+
+function onMorphSpeedChange() {
+  const val = parseInt(document.getElementById('sl-morph-speed').value);
+  morphDuration = val;
+  morphHold     = val;
+  const mult = (500 / val).toFixed(1);
+  document.getElementById('vl-morph-speed').textContent = mult + '×';
+}
+
+// ─── Shape Clone Engine ──────────────────────────────────────────────────────
+// Each symbol SVG gets data-clone="N-I" (N = card's number trait 0/1/2,
+// I = symbol index within that card). The clone loop collapses/expands symbols
+// of each number type in and out of center overlap, using N * cycleOffset so
+// 1-symbol, 2-symbol, and 3-symbol cards never animate in lockstep — exactly
+// the same trick morph uses with si * cycleOffset per shape type.
+
+// ─── Symbol Opacity Compositor ────────────────────────────────────────────────
+// Clone and Fade both control [data-clone] opacity independently.
+// Each stores its factor on the element; the compositor multiplies them.
+
+function setCloneOpacity(el, v) {
+  el._cloneOpacity = v;
+  el.style.opacity = v * (el._fadeOpacity !== undefined ? el._fadeOpacity : 1);
+}
+function setFadeOpacity(v) {
+  document.querySelectorAll('[data-clone]').forEach(el => {
+    el._fadeOpacity = v;
+    el.style.opacity = v * (el._cloneOpacity !== undefined ? el._cloneOpacity : 1);
+  });
+}
+
+let cloneOn         = false;
+let cloneHold       = 500; // ms holding at natural spread positions
+let cloneTrans      = 500;  // ms for collapse / expand transition
+let cloneHoldC      = 333;  // ms holding at center (all overlapping)
+let cloneRaf        = null;
+let clonePhaseStart = null;
+
+function cloneEase(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+function cloneTick(ts) {
+  if (clonePhaseStart === null) clonePhaseStart = ts;
+  const elapsed = ts - clonePhaseStart;
+
+  const layout = getLayout();
+  // Exact centre-to-centre distance between adjacent symbols in the flex row:
+  //   symbol width  = size * 0.5  where size = cardH * 0.54
+  //   symbol margin = size * 0.08 on each side
+  //   flex gap      = 4% of cardW (gap% on a flex container resolves to container width)
+  const size = layout.cardH * 0.54;
+  const symW = size * 0.5;
+  const symM = size * 0.08;
+  const flexGap = 0.04 * layout.cardW;
+  const STEP = symW + 2 * symM + flexGap;
+
+  // Mirror shape-clone.html's phase structure exactly:
+  // Phase 0: hold at 1
+  // Phase 1: 1→2: sym0 drifts LEFT to −STEP, sym1 fades in and drifts RIGHT from 0 to +STEP
+  // Phase 2: hold at 2
+  // Phase 3: 2→3: sym0 eases to −2·STEP (its 3-sym slot), sym1 (right) eases to +2·STEP,
+  //               sym2 fades in drifting from +STEP (where sym1 was) to 0 (centre)
+  // Phase 4: hold at 3
+  // Phase 5: 3→1: all collapse back to 0, sym1+sym2 fade out
+  //
+  // Flex natural positions (before translateX): sym0=−STEP, sym1=0, sym2=+STEP
+  // We use translateX to animate; positions below are the *visual* offsets we want
+  // relative to the card centre, so the translateX we apply = desired − natural:
+  //   sym0 natural flex = −STEP → tx0 = desired0 − (−STEP) = desired0 + STEP
+  //   sym1 natural flex =  0    → tx1 = desired1
+  //   sym2 natural flex = +STEP → tx2 = desired2 − STEP
+
+  const h  = cloneHold;
+  const tr = cloneTrans;
+  const period      = 3 * h + 3 * tr;
+  const cycleOffset = period / 3;
+
+  for (let N = 0; N < 3; N++) {
+    const tN = (elapsed + N * cycleOffset) % period;
+
+    let a1, a2;        // opacities of sym1, sym2
+    let d0, d1, d2;   // desired visual offsets from card centre
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    // Target visual positions (offset from card centre):
+    //   1 sym:  d0=0
+    //   2 syms: d0=−STEP/2, d1=+STEP/2
+    //   3 syms: d0=−STEP,   d2=0,  d1=+STEP
+    const H = STEP / 2;
+
+    if (tN < h) {
+      a1 = 0; a2 = 0;
+      d0 = 0; d1 = 0; d2 = 0;
+
+    } else if (tN < h + tr) {
+      // 1→2
+      const e = cloneEase((tN - h) / tr);
+      a1 = e; a2 = 0;
+      d0 = lerp(0, -H, e);
+      d1 = lerp(0, +H, e);
+      d2 = +H;
+
+    } else if (tN < 2*h + tr) {
+      // Hold 2
+      a1 = 1; a2 = 0;
+      d0 = -H; d1 = +H; d2 = +H;
+
+    } else if (tN < 2*h + 2*tr) {
+      // 2→3: sym0 goes to −STEP, sym1 goes to +STEP, sym2 emerges from +H → 0
+      const e = cloneEase((tN - 2*h - tr) / tr);
+      a1 = 1; a2 = e;
+      d0 = lerp(-H, -STEP, e);
+      d1 = lerp(+H, +STEP, e);
+      d2 = lerp(+H,     0, e);
+
+    } else if (tN < 3*h + 2*tr) {
+      // Hold 3
+      a1 = 1; a2 = 1;
+      d0 = -STEP; d1 = +STEP; d2 = 0;
+
+    } else {
+      // 3→1
+      const e = cloneEase((tN - 3*h - 2*tr) / tr);
+      a1 = 1 - e; a2 = 1 - e;
+      d0 = lerp(-STEP, 0, e);
+      d1 = lerp(+STEP, 0, e);
+      d2 = lerp(0,     0, e);
+    }
+
+    // Convert desired visual offset → translateX (flex natural positions: −STEP, 0, +STEP)
+    const tx0 = d0 + STEP;
+    const tx1 = d1;
+    const tx2 = d2 - STEP;
+
+    const transforms = [tx0, tx1, tx2];
+    const opacities  = [1,   a1,  a2];
+
+    for (let i = 0; i < 3; i++) {
+      document.querySelectorAll(`[data-clone="${N}-${i}"]`).forEach(el => {
+        el.style.display   = '';
+        el.style.transform = `translateX(${transforms[i]}px)`;
+        setCloneOpacity(el, opacities[i]);
+      });
+    }
+  }
+
+  cloneRaf = requestAnimationFrame(cloneTick);
+}
+
+function startClone() {
+  if (cloneRaf) return;
+  // Reveal all phantom symbols (display:none in cardSVG) at opacity 0 so the
+  // flex layout immediately reflects 3-symbol width before the first tick paints.
+  document.querySelectorAll('[data-clone]').forEach(el => {
+    const [N, i] = el.dataset.clone.split('-').map(Number);
+    if (i >= N + 1) {
+      el.style.display = '';
+      setCloneOpacity(el, 0);
+    }
+  });
+  clonePhaseStart = null;
+  cloneRaf = requestAnimationFrame(cloneTick);
+}
+
+function stopClone() {
+  if (cloneRaf) { cancelAnimationFrame(cloneRaf); cloneRaf = null; }
+  // Reset all symbol transforms and re-hide phantom extras so the flex
+  // layout returns to the card's natural symbol count.
+  document.querySelectorAll('[data-clone]').forEach(el => {
+    const [N, i] = el.dataset.clone.split('-').map(Number);
+    el.style.transform = '';
+    el._cloneOpacity = undefined;
+    el.style.opacity = el._fadeOpacity !== undefined ? el._fadeOpacity : '';
+    if (i >= N + 1) el.style.display = 'none';
+  });
+  clonePhaseStart = null;
+}
+
+function onCloneToggle() {
+  cloneOn = document.getElementById('clone-toggle').checked;
+  if (cloneOn) startClone(); else stopClone();
+}
+
+function onCloneSpeedChange() {
+  const val  = parseInt(document.getElementById('sl-clone-speed').value);
+  cloneHold  = val;
+  cloneTrans = Math.round(val * 0.75);
+  cloneHoldC = Math.round(val * 0.5);
+  document.getElementById('vl-clone-speed').textContent = (1200 / val).toFixed(1) + '×';
+}
+
+// ─── Fill Animation Engine ────────────────────────────────────────────────────
+// Animates the stripe fill on shade=2 cards, following the same
+// infrastructure as morphTick / cloneTick and the stripe-loop sequence:
+//   0.000–0.167  stripes expand  0% → 40%  (matches static SET-game density)
+//   0.167–0.333  idle at 40%
+//   0.333–0.500  stripes expand 40% → 100% (full solid fill)
+//   0.500–0.667  idle full
+//   0.667–0.833  card-bg curtain falls top → bottom, wiping back to empty
+//   0.833–1.000  idle empty → loops
+//
+// Stripe geometry mirrors the SVG <pattern>:
+//   period = 20px, stripe = 8px (top-anchored), viewBox 200×400 → 20 stripes
+//   centres at cy = i*20 + 4  (i = 0..19)
+//   hh=4  → 40% fill (SET density);  hh=10 → 100% fill (adjacent centres touch)
+
+let fillOn         = false;
+let fillDuration   = 3000;   // ms per full cycle
+let fillRaf        = null;
+let fillPhaseStart = null;
+
+const FILL_HALF = 4;   // half-height at SET density  (8px / 2)
+const FILL_FULL = 12;  // half-height at 100% fill — slightly >period/2 so rects overlap
+
+function fillEase(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+function fillPct(t, a, b) { return Math.max(0, Math.min(1, (t - a) / (b - a))); }
+
+function fillStripeHH(t) {
+  let sc;
+  if      (t < 0.167) sc = 0.5 * fillEase(fillPct(t, 0,     0.167));
+  else if (t < 0.333) sc = 0.5;
+  else if (t < 0.500) sc = 0.5 + 0.5 * fillEase(fillPct(t, 0.333, 0.500));
+  else                sc = 1.0;
+  return sc <= 0.5
+    ? FILL_HALF * 2 * sc
+    : FILL_HALF + (FILL_FULL - FILL_HALF) * 2 * (sc - 0.5);
+}
+
+function fillCurtainH(t) {
+  if (t < 0.667) return 0;
+  if (t < 0.833) return 400 * fillEase(fillPct(t, 0.667, 0.833));
+  return 400;
+}
+
+// Per-shade phase offsets so each shade starts at its natural hold window:
+//   shade=0 (solid)  → 7/12  ≈ 0.583  (mid solid-hold  0.500–0.667)
+//   shade=1 (empty)  → 11/12 ≈ 0.917  (mid empty-hold  0.833–1.000)
+//   shade=2 (stripe) → 1/4   = 0.250  (mid stripe-hold 0.167–0.333)
+const SHADE_PHASE = [7/12, 11/12, 1/4];
+
+function fillTick(ts) {
+  if (fillPhaseStart === null) fillPhaseStart = ts;
+  const elapsed = ts - fillPhaseStart;
+
+  for (let si = 0; si < 3; si++) {
+    for (let shade = 0; shade < 3; shade++) {
+      const raw = elapsed + SHADE_PHASE[shade] * fillDuration;
+      const t   = (raw % fillDuration) / fillDuration;
+      const hh  = t < 0.667 ? fillStripeHH(t) : FILL_FULL;
+      const cH  = fillCurtainH(t);
+
+      document.querySelectorAll(`[data-fill-cy][data-fill-shape="${si}"][data-fill-shade="${shade}"]`).forEach(rect => {
+        const cy = +rect.dataset.fillCy;
+        rect.setAttribute('y',      cy - hh);
+        rect.setAttribute('height', hh * 2);
+      });
+      document.querySelectorAll(`[data-fill-curtain][data-fill-shape="${si}"][data-fill-shade="${shade}"]`).forEach(rect => {
+        rect.setAttribute('height', cH);
+      });
+    }
+  }
+
+  fillRaf = requestAnimationFrame(fillTick);
+}
+
+function startFill() {
+  if (fillRaf) return;
+  fillPhaseStart = null;
+  fillRaf = requestAnimationFrame(fillTick);
+}
+
+function stopFill() {
+  if (fillRaf) { cancelAnimationFrame(fillRaf); fillRaf = null; }
+  fillPhaseStart = null;
+  // Reset each (shape, shade) group to its correct static appearance
+  const staticHH = [FILL_FULL, 0, FILL_HALF];
+  const staticCH = [0, 400, 0];
+  for (let si = 0; si < 3; si++) {
+    for (let shade = 0; shade < 3; shade++) {
+      const hh = staticHH[shade];
+      const cH = staticCH[shade];
+      document.querySelectorAll(`[data-fill-cy][data-fill-shape="${si}"][data-fill-shade="${shade}"]`).forEach(rect => {
+        const cy = +rect.dataset.fillCy;
+        rect.setAttribute('y',      cy - hh);
+        rect.setAttribute('height', hh * 2);
+      });
+      document.querySelectorAll(`[data-fill-curtain][data-fill-shape="${si}"][data-fill-shade="${shade}"]`).forEach(rect => {
+        rect.setAttribute('height', cH);
+      });
+    }
+  }
+}
+
+function onFillToggle() {
+  fillOn = document.getElementById('fill-toggle').checked;
+  if (fillOn) startFill(); else stopFill();
+}
+
+function onFillSpeedChange() {
+  const val    = parseInt(document.getElementById('sl-fill-speed').value);
+  fillDuration = val;
+  document.getElementById('vl-fill-speed').textContent = (3000 / val).toFixed(1) + '×';
+}
+
+// ─── Card Fade Engine ─────────────────────────────────────────────────────────
+// Pulses the opacity of all symbol SVGs (data-clone) between 1 and 0
+// on a 2-second sine cycle, making shapes fade into the card background.
+
+let fadeOn    = false;
+let fadeRaf   = null;
+let fadeStart = null;
+
+function fadeTick(ts) {
+  if (fadeStart === null) fadeStart = ts;
+  const t = ((ts - fadeStart) % 2000) / 2000; // 0..1 over 2 seconds
+  const opacity = (1 + Math.cos(t * Math.PI * 2)) / 2; // 1→0→1 cosine
+  setFadeOpacity(opacity);
+  fadeRaf = requestAnimationFrame(fadeTick);
+}
+
+function startFade() {
+  if (fadeRaf) return;
+  fadeStart = null;
+  fadeRaf = requestAnimationFrame(fadeTick);
+}
+
+function stopFade() {
+  if (fadeRaf) { cancelAnimationFrame(fadeRaf); fadeRaf = null; }
+  fadeStart = null;
+  setFadeOpacity(1);
+}
+
+function onFadeToggle() {
+  fadeOn = document.getElementById('fade-toggle').checked;
+  if (fadeOn) startFade(); else stopFade();
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+// ─── Firebase + Leaderboard ───────────────────────────────────────────────────
+
+const ARCANA_KEYS = ['fill', 'morph', 'clone', 'hue', 'fade'];
+const ARCANA_LABELS = { fill: 'XIX', morph: 'XVIII', clone: 'XVII', hue: 'XXI', fade: '0' };
+
+// ── Firebase init ──────────────────────────────────────────────────────────────
+let firebaseReady = false;
+let db = null;
+let currentUserId = null;
+let currentUser = null; // full Firebase user object
+
+// Display name: stored in localStorage, synced to Firebase scores
+function getDisplayName() {
+  return localStorage.getItem('setgame_display_name') || '';
+}
+function setDisplayName(name) {
+  if (name) localStorage.setItem('setgame_display_name', name);
+  else localStorage.removeItem('setgame_display_name');
+  updateHeaderNamePill();
+}
+
+function updateHeaderNamePill() {
+  const pill = document.getElementById('header-name-pill');
+  if (!pill) return;
+  const name = getDisplayName();
+  const isLinked = currentUser && !currentUser.isAnonymous;
+  pill.textContent = name || (isLinked ? currentUser.email.split('@')[0] : 'anon');
+  pill.classList.toggle('linked', isLinked);
+}
+
+(function initFirebase() {
+  if (!FIREBASE_CONFIG || FIREBASE_CONFIG.apiKey === 'PASTE_YOUR_API_KEY') {
+    console.warn('[SET] Firebase config not set — using localStorage fallback.');
+    updateHeaderNamePill();
+    return;
+  }
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+
+    // Listen to auth state — handles anonymous, linked, and Google sign-in
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) {
+        currentUser = user;
+        currentUserId = user.uid;
+        firebaseReady = true;
+        // Auto-populate display name from Google account if not set manually
+        if (!getDisplayName() && user.displayName) {
+          setDisplayName(user.displayName);
+        }
+        updateHeaderNamePill();
+        if (document.getElementById('panel-leaderboard').classList.contains('active')) {
+          renderLeaderboard();
+        }
+        // If profile modal is open, re-render it
+        if (document.getElementById('profile-modal-overlay').classList.contains('open')) {
+          renderProfileModal();
+        }
+      } else {
+        // Sign in anonymously if no user yet
+        firebase.auth().signInAnonymously().catch(err => {
+          console.error('[SET] Firebase anon auth failed:', err);
+        });
+      }
+    });
+  } catch (err) {
+    console.error('[SET] Firebase init failed:', err);
+    updateHeaderNamePill();
+  }
+})();
+
+// ── localStorage fallback helpers ─────────────────────────────────────────────
+function lbGetLocal() {
+  try { return JSON.parse(localStorage.getItem('setgame_lb') || '[]'); } catch { return []; }
+}
+function lbSaveLocal(arr) {
+  try { localStorage.setItem('setgame_lb', JSON.stringify(arr)); } catch {}
+}
+
+// ── Record a finished game ─────────────────────────────────────────────────────
+function lbRecord(timeMs, mods) {
+  const entry = {
+    t: timeMs,
+    mods,
+    d: Date.now(),
+    name: getDisplayName() || null,
+    history: gameHistory.map(h => ({ time: h.time, cards: [...h.cards] })),
+    initialDeck: [...initialDeck],
+  };
+
+  if (firebaseReady && db) {
+    // Write to /scores — push() auto-generates a unique key
+    const payload = {
+      ...entry,
+      uid: currentUserId,
+      // Serialise arrays as JSON strings for RTDB (no nested arrays allowed)
+      history: JSON.stringify(entry.history),
+      initialDeck: JSON.stringify(entry.initialDeck),
+      mods: JSON.stringify(entry.mods),
+    };
+    db.ref('scores').push(payload)
+      .then(() => {
+        // Also refresh leaderboard if visible
+        if (document.getElementById('panel-leaderboard').classList.contains('active')) {
+          renderLeaderboard();
+        }
+      })
+      .catch(err => console.error('[SET] Failed to save score:', err));
+  } else {
+    // Fallback: localStorage
+    const entries = lbGetLocal();
+    entries.push(entry);
+    lbSaveLocal(entries);
+  }
+}
+
+// ── filter state: set of arcana keys ──────────────────────────────────────────
+const lbFilter = new Set();
+
+function switchTab(tab) {
+  if (tab === 'leaderboard') switchPanel('leaderboard');
+}
+
+function buildLbFilterCards() {
+  const el = document.getElementById('lb-filter-cards');
+  if (el.children.length > 0) return; // already built
+  const ART = {
+    fill:  document.querySelector('#arc-fill .arcana-art').innerHTML,
+    morph: document.querySelector('#arc-morph .arcana-art').innerHTML,
+    clone: document.querySelector('#arc-clone .arcana-art').innerHTML,
+    hue:   document.querySelector('#arc-hue .arcana-art').innerHTML,
+    fade:  document.querySelector('#arc-fade .arcana-art').innerHTML,
+  };
+  ARCANA_KEYS.forEach(key => {
+    const card = document.createElement('div');
+    card.className = 'lb-mini-card' + (lbFilter.has(key) ? ' active' : '');
+    card.id = 'lbf-' + key;
+    card.innerHTML = `<div style="transform:scale(0.33);transform-origin:center;pointer-events:none;">${ART[key]}</div>`;
+    card.onclick = () => {
+      lbFilter.has(key) ? lbFilter.delete(key) : lbFilter.add(key);
+      const isActive = lbFilter.has(key);
+      card.classList.toggle('active', isActive);
+      renderLeaderboard();
+    };
+    el.appendChild(card);
+  });
+}
+
+const MINI_ART = {
+  fill:  `<svg width="13" height="13" viewBox="-60 -60 120 120"><g fill="#3a3630"><g transform="rotate(0)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(45)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(90)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(135)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(180)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(225)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(270)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(315)"><polygon points="-6,-30 0,-56 6,-30"/></g></g><circle r="26" fill="#3a3630"/></svg>`,
+  morph: `<svg width="13" height="13" viewBox="0 0 74 74"><defs><mask id="lbmm"><rect width="74" height="74" fill="white"/><circle cx="46" cy="28" r="22" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#lbmm)"/></svg>`,
+  clone: `<svg width="13" height="13" viewBox="-54 -54 108 108"><polygon points="0,-50 5.7,-13.9 19.8,-19.8 13.9,-5.7 50,0 13.9,5.7 19.8,19.8 5.7,13.9 0,50 -5.7,13.9 -19.8,19.8 -13.9,5.7 -50,0 -13.9,-5.7 -19.8,-19.8 -5.7,-13.9" fill="#3a3630"/><path fill="#f5f0e8" d="M-13,0 A22,22 0 0,0 13,0 A22,22 0 0,0 -13,0 Z"/><circle cx="0" cy="0" r="4" fill="#3a3630"/></svg>`,
+  hue:   `<svg width="13" height="13" viewBox="0 0 74 74"><defs><mask id="lbhue"><rect width="74" height="74" fill="white"/><circle cx="50" cy="24" r="24" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#lbhue)"/></svg>`,
+  fade:  `<svg width="13" height="20" viewBox="-15 -10 326 328"><g transform="rotate(-0.5,148,154)"><path fill="#3a3630" fill-rule="evenodd" d="M133.5 300.32C115.17 296.22 99.38 286.65 81.93 269.08 54.82 241.79 36.01 201.94 27.95 154.7 22 119.89 21.57 84.52 26.63 47c1.76-13.08 3.26-16.37 8.75-19.18 4.68-2.4 7.22-2.06 19.44 2.66 19.12 7.39 45.27 14.1 64.07 16.45 41.51 5.19 78.07.07 127.34-17.85 7.34-2.67 10.67-2.62 14.87.21 4.58 3.08 5.68 5.74 7.36 17.87 6.46 46.67 3.1 97.31-9.21 138.84-17.14 57.86-54.82 102.83-94.66 112.98-7.48 1.91-25.15 2.67-31.09 1.34zm31.78-56.23c10.29-3.56 18-8.32 25.22-15.61 7.73-7.78 12.67-16.09 15.54-26.13 2.19-7.65 3.33-7.49-11.04-1.56-17.17 7.1-25.75 8.66-47.5 8.67-16.4 0-20.23-.31-28-2.25-9.97-2.5-20.46-6.24-27.85-9.93-2.67-1.33-5.04-2.22-5.28-1.98-1.02 1.01 5.73 18.28 9.18 23.49 8.78 13.26 23.21 23.29 38.45 26.72 8.6 1.94 23.53 1.26 31.28-1.42z"/></g></svg>`,
+};
+
+function renderLbEntries(entries) {
+  const list = document.getElementById('lb-list');
+  list.innerHTML = '';
+
+  // filter
+  let filtered = entries;
+  if (lbFilter.size > 0) {
+    filtered = entries.filter(e => [...lbFilter].every(k => e.mods.includes(k)));
+  }
+  filtered.sort((a, b) => a.t - b.t);
+
+  if (filtered.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'lb-empty';
+    empty.textContent = lbFilter.size ? 'no runs with these modifiers' : 'no runs yet';
+    list.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach((e, i) => {
+    const hasReplay = !!(e.history && e.initialDeck);
+    const row = document.createElement('div');
+    row.className = 'lb-entry';
+    if (hasReplay) {
+      row.title = 'Click to watch replay';
+      row.addEventListener('click', ev => {
+        if (ev.target.closest('.lb-name-link')) return;
+        openReplay(e);
+      });
+    } else {
+      row.style.cursor = 'default';
+    }
+
+    const rank = document.createElement('div');
+    rank.className = 'lb-rank' + (i === 0 ? ' gold' : i === 1 ? ' silver' : i === 2 ? ' bronze' : '');
+    rank.textContent = i + 1;
+
+    const modsEl = document.createElement('div');
+    modsEl.className = 'lb-mods';
+    if (e.mods.length === 0) {
+      const none = document.createElement('span');
+      none.className = 'lb-no-mods';
+      none.textContent = 'no modifiers';
+      modsEl.appendChild(none);
+    } else {
+      e.mods.forEach(k => {
+        const pip = document.createElement('div');
+        pip.className = 'lb-mod-pip';
+        pip.innerHTML = MINI_ART[k] || '';
+        modsEl.appendChild(pip);
+      });
+    }
+
+    const secs = Math.floor(e.t / 1000);
+    const m = Math.floor(secs / 60), s = secs % 60;
+    const timeEl = document.createElement('div');
+    timeEl.className = 'lb-time';
+    timeEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+
+    const replayHint = document.createElement('div');
+    replayHint.style.cssText = 'font-size:10px;flex-shrink:0;color:var(--text-muted);opacity:' + (hasReplay ? '0.45' : '0') + ';';
+    replayHint.textContent = '▶';
+
+    row.appendChild(rank);
+    row.appendChild(modsEl);
+
+    if (e.name) {
+      const nameEl = document.createElement('div');
+      nameEl.className = 'lb-name lb-name-link';
+      nameEl.textContent = e.name;
+      nameEl.title = "View " + e.name + "'s profile";
+      nameEl.style.cssText = 'cursor:pointer;transition:color 0.15s;';
+      nameEl.addEventListener('mouseenter', () => nameEl.style.color = 'var(--teal)');
+      nameEl.addEventListener('mouseleave', () => nameEl.style.color = '');
+      nameEl.addEventListener('click', ev => { ev.stopPropagation(); openPlayerProfile(e.name); });
+      row.appendChild(nameEl);
+    }
+
+    if (e.uid && e.uid === currentUserId) {
+      const you = document.createElement('div');
+      you.style.cssText = 'font-size:9px;letter-spacing:1px;color:var(--teal);flex-shrink:0;';
+      you.textContent = 'you';
+      row.appendChild(timeEl);
+      row.appendChild(you);
+    } else {
+      row.appendChild(timeEl);
+    }
+
+    row.appendChild(replayHint);
+    list.appendChild(row);
+  });
+}
+
+function renderLeaderboard() {
+  const list = document.getElementById('lb-list');
+
+  if (firebaseReady && db) {
+    list.innerHTML = '<div class="lb-empty">loading…</div>';
+    // Fetch top 100 scores ordered by time
+    db.ref('scores').orderByChild('t').limitToFirst(100).once('value')
+      .then(snap => {
+        const entries = [];
+        snap.forEach(child => {
+          const raw = child.val();
+          // Deserialise JSON strings back to arrays
+          entries.push({
+            ...raw,
+            mods:        tryParseJson(raw.mods, []),
+            history:     tryParseJson(raw.history, null),
+            initialDeck: tryParseJson(raw.initialDeck, null),
+          });
+        });
+        renderLbEntries(entries);
+      })
+      .catch(err => {
+        console.error('[SET] Failed to load scores:', err);
+        list.innerHTML = '<div class="lb-empty">failed to load — check console</div>';
+      });
+  } else {
+    // Fallback: localStorage
+    renderLbEntries(lbGetLocal());
+  }
+}
+
+function tryParseJson(val, fallback) {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val !== 'string') return val; // already parsed
+  try { return JSON.parse(val); } catch { return fallback; }
+}
+
+
+// ─── Replay Engine ────────────────────────────────────────────────────────────
+
+let replayEntry     = null;
+let replayStepIdx   = -1;
+let replayBoards    = [];
+let replayPlaying   = false;
+let replayTimer     = null;
+let replayInterval  = 1100;
+
+function buildReplayBoards(initialDeckArr, history) {
+  let simDeck = [...initialDeckArr];
+  let simBoard = [];
+  const boards = [];
+
+  function simRefill() {
+    const target = Math.max(12, simBoard.length);
+    while (simBoard.length < target && simDeck.length > 0) simBoard.push(simDeck.pop());
+    while (!findSetOnBoard(simBoard) && simDeck.length > 0) {
+      simBoard.push(simDeck.pop());
+      simBoard.push(simDeck.pop());
+      simBoard.push(simDeck.pop());
+    }
+  }
+
+  simRefill();
+  boards.push({ board: [...simBoard], foundCards: null, deckLeft: simDeck.length });
+
+  for (const h of history) {
+    const [a, b, c] = h.cards;
+    simBoard = simBoard.filter(card => card !== a && card !== b && card !== c);
+    simRefill();
+    boards.push({ board: [...simBoard], foundCards: [a, b, c], time: h.time, deckLeft: simDeck.length });
+  }
+
+  return boards;
+}
+
+function renderReplayBoard(boardArr, highlightCards) {
+  const container = document.getElementById('replay-board-inner');
+  const boardEl   = document.getElementById('replay-board');
+  boardEl.innerHTML = '';
+
+  const W = Math.min(container.clientWidth || 660, 720);
+  const cols = W < 480 ? 3 : 4;
+  const cardW = Math.floor((W - GAP * (cols + 1)) / cols);
+  const cardH = Math.round(cardW / 1.6);
+  const rows  = Math.ceil(boardArr.length / cols);
+  const h     = rows * cardH + (rows + 1) * GAP;
+
+  container.style.height = h + 'px';
+  boardEl.style.height   = h + 'px';
+
+  boardArr.forEach((card, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x   = GAP + col * (cardW + GAP);
+    const y   = GAP + row * (cardH + GAP);
+
+    const sprite = document.createElement('div');
+    sprite.style.cssText = `position:absolute;width:${cardW}px;height:${cardH}px;transform:translate(${x}px,${y}px);`;
+
+    const inner = document.createElement('div');
+    inner.className = 'set-card';
+    inner.style.pointerEvents = 'none';
+    inner.innerHTML = cardSVG(card, cardH * 0.54);
+
+    if (highlightCards && highlightCards.includes(card)) {
+      inner.style.boxShadow = '0 0 0 3px var(--success), 0 0 16px rgba(74,222,128,0.3)';
+    }
+
+    sprite.appendChild(inner);
+    boardEl.appendChild(sprite);
+  });
+}
+
+function replayRenderStep() {
+  if (!replayEntry || replayBoards.length === 0) return;
+
+  const idx   = replayStepIdx;
+  const total = replayBoards.length - 1;
+  const state = replayBoards[Math.max(0, idx + 1)];
+  const highlight = idx >= 0 && replayBoards[idx + 1]?.foundCards;
+  renderReplayBoard(state.board, highlight || null);
+
+  const setNum = Math.max(0, idx + 1);
+  document.getElementById('replay-progress').textContent = `Set ${setNum} / ${total}`;
+  document.getElementById('replay-scrubber').value = setNum;
+
+  const infoEl = document.getElementById('replay-step-info');
+  infoEl.innerHTML = '';
+  if (idx >= 0 && replayBoards[idx + 1]?.foundCards) {
+    const s = replayBoards[idx + 1];
+    const row = document.createElement('div');
+    row.className = 'replay-set-found';
+    const label = document.createElement('span');
+    label.textContent = `Set #${idx + 1}`;
+    row.appendChild(label);
+    for (const card of s.foundCards) {
+      const hc = document.createElement('div');
+      hc.className = 'hist-card';
+      hc.innerHTML = histCardSVG(card);
+      row.appendChild(hc);
+    }
+    if (s.time !== undefined) {
+      const secs = Math.floor(s.time / 1000);
+      const m2 = Math.floor(secs / 60), sec2 = secs % 60;
+      const t = document.createElement('span');
+      t.style.marginLeft = 'auto';
+      t.textContent = `@ ${m2}:${sec2.toString().padStart(2,'0')}`;
+      row.appendChild(t);
+    }
+    infoEl.appendChild(row);
+  } else if (idx === -1) {
+    const row = document.createElement('div');
+    row.className = 'replay-set-found';
+    row.style.borderColor = 'var(--border)';
+    row.style.background  = 'transparent';
+    row.textContent = 'Initial board state';
+    infoEl.appendChild(row);
+  }
+
+  const statEl = document.getElementById('replay-stat-row');
+  statEl.innerHTML = `Sets found: <span>${Math.max(0, idx + 1)}</span> &nbsp; Cards in deck: <span>${state.deckLeft}</span> &nbsp; Cards on board: <span>${state.board.length}</span>`;
+
+  document.getElementById('replay-btn-prev').disabled = idx <= -1;
+  document.getElementById('replay-btn-next').disabled = idx >= total - 1;
+}
+
+function replayStep(dir) {
+  if (!replayEntry) return;
+  const total = replayBoards.length - 1;
+  replayStepIdx = Math.max(-1, Math.min(total - 1, replayStepIdx + dir));
+  replayRenderStep();
+}
+
+function replayScrub(val) {
+  replayStepIdx = parseInt(val) - 1;
+  replayRenderStep();
+}
+
+function replayTogglePlay() {
+  replayPlaying = !replayPlaying;
+  const btn = document.getElementById('replay-btn-play');
+  btn.textContent = replayPlaying ? '⏸ Pause' : '▶ Play';
+  btn.classList.toggle('active', replayPlaying);
+  if (replayPlaying) replayAutoPlay();
+  else { clearTimeout(replayTimer); replayTimer = null; }
+}
+
+function replayAutoPlay() {
+  if (!replayPlaying) return;
+  const total = replayBoards.length - 1;
+  if (replayStepIdx >= total - 1) {
+    replayPlaying = false;
+    document.getElementById('replay-btn-play').textContent = '▶ Play';
+    document.getElementById('replay-btn-play').classList.remove('active');
+    return;
+  }
+  replayStep(1);
+  replayTimer = setTimeout(replayAutoPlay, replayInterval);
+}
+
+function replayUpdateSpeed() {
+  const val = parseInt(document.getElementById('replay-speed').value);
+  replayInterval = val;
+  const mult = (1100 / val).toFixed(1);
+  document.getElementById('replay-speed-label').textContent = mult + '×';
+}
+
+const MINI_ART_REPLAY = {
+  fill:  `<svg width="13" height="13" viewBox="-60 -60 120 120"><g fill="#3a3630"><g transform="rotate(0)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(45)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(90)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(135)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(180)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(225)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(270)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(315)"><polygon points="-6,-30 0,-56 6,-30"/></g></g><circle r="26" fill="#3a3630"/></svg>`,
+  morph: `<svg width="13" height="13" viewBox="0 0 74 74"><defs><mask id="rplmm"><rect width="74" height="74" fill="white"/><circle cx="46" cy="28" r="22" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#rplmm)"/></svg>`,
+  clone: `<svg width="13" height="13" viewBox="-54 -54 108 108"><polygon points="0,-50 5.7,-13.9 19.8,-19.8 13.9,-5.7 50,0 13.9,5.7 19.8,19.8 5.7,13.9 0,50 -5.7,13.9 -19.8,19.8 -13.9,5.7 -50,0 -13.9,-5.7 -19.8,-19.8 -5.7,-13.9" fill="#3a3630"/><path fill="#f5f0e8" d="M-13,0 A22,22 0 0,0 13,0 A22,22 0 0,0 -13,0 Z"/><circle cx="0" cy="0" r="4" fill="#3a3630"/></svg>`,
+  hue:   `<svg width="13" height="13" viewBox="0 0 74 74"><defs><mask id="rplhue"><rect width="74" height="74" fill="white"/><circle cx="50" cy="24" r="24" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#rplhue)"/></svg>`,
+  fade:  `<svg width="13" height="20" viewBox="-15 -10 326 328"><g transform="rotate(-0.5,148,154)"><path fill="#3a3630" fill-rule="evenodd" d="M133.5 300.32C81.93 269.08 27.95 154.7 26.63 47c1.76-13.08 8.75-19.18 127.34-17.85 7.34-2.67 268.46 47.16 259.25 186-17.14 57.86-94.66 112.98-31.09 1.34z"/></g></svg>`,
+};
+
+function openReplay(entry) {
+  replayEntry   = entry;
+  replayBoards  = buildReplayBoards(entry.initialDeck, entry.history);
+  replayStepIdx = -1;
+
+  replayPlaying = false;
+  clearTimeout(replayTimer);
+  document.getElementById('replay-btn-play').textContent = '▶ Play';
+  document.getElementById('replay-btn-play').classList.remove('active');
+
+  const total = replayBoards.length - 1;
+  const scrubber = document.getElementById('replay-scrubber');
+  scrubber.max   = total;
+  scrubber.value = 0;
+
+  const secs = Math.floor(entry.t / 1000);
+  const m = Math.floor(secs / 60), s = secs % 60;
+  document.getElementById('replay-meta-time').textContent = `${m}:${s.toString().padStart(2,'0')} · ${total} sets`;
+
+  const modsEl = document.getElementById('replay-meta-mods');
+  modsEl.innerHTML = '';
+  if (entry.mods && entry.mods.length > 0) {
+    entry.mods.forEach(k => {
+      const pip = document.createElement('div');
+      pip.className = 'lb-mod-pip';
+      pip.innerHTML = MINI_ART_REPLAY[k] || '';
+      modsEl.appendChild(pip);
+    });
+  }
+
+  // Apply modifiers visually (toggle the arcana indicators)
+  ARCANA_KEYS.forEach(k => {
+    arcanaSelected[k] = entry.mods.includes(k);
+  });
+
+  document.getElementById('replay-overlay').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  replayRenderStep();
+}
+
+function closeReplay() {
+  replayPlaying = false;
+  clearTimeout(replayTimer);
+  replayEntry = null;
+  document.getElementById('replay-overlay').classList.add('hidden');
+  document.body.style.overflow = '';
+  document.getElementById('replay-board').innerHTML = '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('replay-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('replay-overlay')) closeReplay();
+  });
+});
+
+document.addEventListener('keydown', e => {
+  if (document.getElementById('replay-overlay').classList.contains('hidden')) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') replayStep(1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   replayStep(-1);
+  if (e.key === ' ') { e.preventDefault(); replayTogglePlay(); }
+  if (e.key === 'Escape') closeReplay();
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Trigger deal animation on first load
+  animateArcanaCards();
+});
+
+// ─── Arcana Selection Screen ──────────────────────────────────────────────────
+
+const arcanaSelected = { fill: false, morph: false, clone: false, hue: false, fade: false };
+let _arcanaWasOpen = false;
+
+function switchPanel(panel) {
+  document.getElementById('tab-play').classList.toggle('active', panel === 'play');
+  document.getElementById('tab-leaderboard').classList.toggle('active', panel === 'leaderboard');
+  document.getElementById('tab-player').classList.toggle('active', panel === 'player');
+  document.getElementById('panel-play').classList.toggle('active', panel === 'play');
+  document.getElementById('panel-leaderboard').classList.toggle('active', panel === 'leaderboard');
+  document.getElementById('panel-player').classList.toggle('active', panel === 'player');
+  if (panel === 'leaderboard') {
+    buildLbFilterCards();
+    renderLeaderboard();
+    _arcanaWasOpen = !document.getElementById('arcana-screen').classList.contains('hidden');
+    document.getElementById('arcana-screen').classList.add('hidden');
+  }
+  if (panel === 'player') {
+    _arcanaWasOpen = !document.getElementById('arcana-screen').classList.contains('hidden');
+    document.getElementById('arcana-screen').classList.add('hidden');
+  }
+  if (panel === 'play' && _arcanaWasOpen) {
+    document.getElementById('arcana-screen').classList.remove('hidden');
+    animateArcanaCards();
+    _arcanaWasOpen = false;
+  }
+}
+
+function showArcana() {
+  // Reset selections
+  Object.keys(arcanaSelected).forEach(k => {
+    arcanaSelected[k] = false;
+    document.getElementById('arc-' + k).classList.remove('selected');
+  });
+  const overlay = document.getElementById('arcana-screen');
+  overlay.classList.remove('hidden');
+  animateArcanaCards();
+}
+
+function animateArcanaCards() {
+  const cards = Array.from(document.querySelectorAll('.arcana-card'));
+  const STAGGER = 55; // ms between each card
+
+  // Spring constants matching the board animation
+  const T = TENSION, F = FRICTION, M = MASS;
+
+  cards.forEach((card, i) => {
+    // Reset: start off-screen left, invisible
+    card.style.transition = 'none';
+    card.style.transform = 'translateX(-320px)';
+    card.style.opacity = '0';
+
+    setTimeout(() => {
+      card.style.transition = 'transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.3s ease';
+      card.style.transform = 'translateX(0px)';
+      card.style.opacity = '1';
+      // After animation settles, clear inline styles so CSS class transforms work
+      setTimeout(() => {
+        card.style.transition = '';
+        card.style.transform = '';
+        card.style.opacity = '';
+      }, 600);
+    }, i * STAGGER);
+  });
+}
+
+function toggleArcana(key) {
+  arcanaSelected[key] = !arcanaSelected[key];
+  const card = document.getElementById('arc-' + key);
+  card.classList.toggle('selected', arcanaSelected[key]);
+  if (arcanaSelected[key]) {
+    card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.15s, opacity 0.15s';
+    card.style.transform = 'translateY(-4px) scale(1.03)';
+  } else {
+    card.style.transition = 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s, opacity 0.15s';
+    card.style.transform = '';
+  }
+}
+
+function startFromArcana() {
+  const overlay = document.getElementById('arcana-screen');
+  const cards = Array.from(document.querySelectorAll('.arcana-card'));
+  const STAGGER = 40;
+
+  // Animate cards out to the right, last card first
+  cards.slice().reverse().forEach((card, i) => {
+    setTimeout(() => {
+      card.style.transition = 'transform 0.38s cubic-bezier(0.4, 0, 1, 1), opacity 0.25s ease';
+      card.style.transform = 'translateX(320px)';
+      card.style.opacity = '0';
+    }, i * STAGGER);
+  });
+
+  // After all cards are gone, fade the overlay, reset positions, then start the game
+  const totalDelay = cards.length * STAGGER + 280;
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+    // Reset cards off-screen left, ready for next open
+    cards.forEach(card => {
+      card.style.transition = 'none';
+      card.style.transform = 'translateX(-320px)';
+      card.style.opacity = '0';
+    });
+
+    // Apply selected effects (defaults, no sliders needed)
+    morphOn  = arcanaSelected.morph;
+    cloneOn  = arcanaSelected.clone;
+    fillOn   = arcanaSelected.fill;
+    animOn   = arcanaSelected.hue;
+    fadeOn   = arcanaSelected.fade;
+
+    // Build modifier mini tarot cards in the status bar
+    const pillsEl = document.getElementById('modifier-pills');
+    pillsEl.innerHTML = '';
+  const ARCANA_ART = {
+    fill: `<svg width="22" height="22" viewBox="-60 -60 120 120"><g fill="#3a3630"><g transform="rotate(0)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(45)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(90)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(135)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(180)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(225)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(270)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(315)"><polygon points="-6,-30 0,-56 6,-30"/></g></g><circle r="26" fill="#3a3630"/></svg>`,
+    morph: `<svg width="22" height="22" viewBox="0 0 74 74"><defs><mask id="mmm"><rect width="74" height="74" fill="white"/><circle cx="46" cy="28" r="22" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#mmm)"/></svg>`,
+    clone: `<svg width="22" height="22" viewBox="-54 -54 108 108"><polygon points="0,-50 5.7,-13.9 19.8,-19.8 13.9,-5.7 50,0 13.9,5.7 19.8,19.8 5.7,13.9 0,50 -5.7,13.9 -19.8,19.8 -13.9,5.7 -50,0 -13.9,-5.7 -19.8,-19.8 -5.7,-13.9" fill="#3a3630"/><path fill="#f5f0e8" d="M-13,0 A22,22 0 0,0 13,0 A22,22 0 0,0 -13,0 Z"/><circle cx="0" cy="0" r="4" fill="#3a3630"/></svg>`,
+    hue:  `<svg width="22" height="22" viewBox="240 200 520 540" xmlns="http://www.w3.org/2000/svg"><g><path d="M0 0 C0.99 0.22042969 0.99 0.22042969 2 0.4453125 C14.5226572 3.44905798 25.44714632 11.7751019 35.6875 19.25 C42.78944302 24.41994062 49.7063911 27.98805384 58 31 C58.75667969 31.2784375 59.51335937 31.556875 60.29296875 31.84375 C60.93878906 32.0809375 61.58460938 32.318125 62.25 32.5625 C71.42087136 35.94020851 80.75853473 40.09312975 85.4375 49.125 C88.25351555 56.37837339 88.02342049 63.96240589 85.4375 71.25 C81.36919126 80.15745492 73.94017094 87.46613398 64.94140625 91.3046875 C61.32087879 92.62796768 57.67416703 93.83713546 54 95 C52.72385324 95.41504159 51.44781215 95.83040822 50.171875 96.24609375 C36.59832164 100.6173535 22.85200434 104.37164253 9 107.75 C8.15219971 107.96076172 7.30439941 108.17152344 6.4309082 108.38867188 C-16.44353767 113.853633 -41.37369982 113.49479535 -62.08203125 101.81640625 C-64.70240941 100.18524716 -67.10732467 98.42702274 -69.5625 96.5625 C-74.87953753 92.96624916 -79.78782893 93.02628181 -86 94 C-108.61610404 99.47032119 -130.01431658 115.59842888 -146 132 C-146.67160156 132.68578125 -147.34320313 133.3715625 -148.03515625 134.078125 C-161.02939533 147.99873565 -171.58754944 164.48905407 -179 182 C-179.35964844 182.83273437 -179.71929687 183.66546875 -180.08984375 184.5234375 C-183.90146435 193.64255999 -186.06505058 203.0505435 -188.125 212.6875 C-188.29580078 213.48341553 -188.46660156 214.27933105 -188.64257812 215.09936523 C-195.10395814 246.07087053 -190.97614633 282.47560584 -177 311 C-176.53335938 311.95390625 -176.06671875 312.9078125 -175.5859375 313.890625 C-175.18632812 314.66921875 -174.78671875 315.4478125 -174.375 316.25 C-173.18168695 318.57582034 -172.06575809 320.81830822 -171.17578125 323.27734375 C-169.47050896 327.22609719 -167.1569458 330.7152459 -164.8125 334.3125 C-164.31782227 335.07361084 -163.82314453 335.83472168 -163.31347656 336.61889648 C-159.89834876 341.80118027 -156.28502152 346.50492841 -152 351 C-150.91323131 352.2678968 -149.83004066 353.53886715 -148.75 354.8125 C-134.49562272 371.04399449 -118.09328913 383.0861768 -99 393 C-98.01 393.53367187 -98.01 393.53367187 -97 394.078125 C-78.01229312 404.04667111 -55.31429149 409.88314243 -33.890625 410.30859375 C-33.13378418 410.32376541 -32.37694336 410.33893707 -31.59716797 410.35456848 C-8.59223088 410.72934923 12.51189834 409.03344349 34 400 C35.45129891 399.4457157 36.90439432 398.89610896 38.359375 398.3515625 C55.80477872 391.59640221 72.10589378 381.55813447 86 369 C87.485 367.69289063 87.485 367.69289063 89 366.359375 C97.25058999 359.02179184 105.06248796 351.36299975 111 342 C111.48315674 341.51950195 111.96631348 341.03900391 112.46411133 340.54394531 C130.67173995 322.24080696 139.35304762 291.41570225 144 267 C144.13277344 266.31969727 144.26554687 265.63939453 144.40234375 264.93847656 C146.17086586 255.43515409 146.19371216 245.88611519 146.25 236.25 C146.25942627 235.02982178 146.26885254 233.80964355 146.27856445 232.55249023 C146.25079166 224.82693827 145.49219956 217.57261381 144 210 C143.70127007 208.32692153 143.40306668 206.65374894 143.10546875 204.98046875 C140.24761796 189.79405488 135.94062867 175.88125734 129 162 C128.66983887 161.33709961 128.33967773 160.67419922 127.99951172 159.99121094 C119.20074956 142.45817594 104.30885994 114.15442997 86 105 C86 104.01 86 103.02 86 102 C87.5390625 100.4921875 87.5390625 100.4921875 89.625 98.875 C95.78353409 93.71927146 99.66261942 87.23099126 103 80 C107.30184146 80.49636632 109.90470655 83.23583097 113 86 C113.57492187 86.495 114.14984375 86.99 114.7421875 87.5 C116.84494186 89.31482534 118.92224434 91.15660398 121 93 C121.91007812 93.79277344 122.82015625 94.58554687 123.7578125 95.40234375 C131.60171185 102.32534152 138.46559447 109.83583685 145 118 C145.4626123 118.5770166 145.92522461 119.1540332 146.40185547 119.74853516 C179.93447299 162.16128497 195.23839357 218.65343106 189.02246094 272.18310547 C184.54741333 306.7135404 173.47005952 338.99652377 154 368 C153.56945312 368.64388672 153.13890625 369.28777344 152.6953125 369.95117188 C147.36295194 377.84468137 141.50310354 385.03151429 135 392 C133.87017688 393.30835048 132.74495294 394.62069073 131.625 395.9375 C125.70026666 402.73433194 119.2938552 409.6727474 112 415 C111.34 415 110.68 415 110 415 C110 415.66 110 416.32 110 417 C107.7462179 419.09690728 105.17949968 420.82178995 102.6875 422.625 C101.99720703 423.140625 101.30691406 423.65625 100.59570312 424.1875 C99.92861328 424.67476562 99.26152344 425.16203125 98.57421875 425.6640625 C97.96151123 426.11217285 97.34880371 426.5602832 96.7175293 427.02197266 C95 428 95 428 92 428 C92 428.66 92 429.32 92 430 C89.81918968 431.49968889 87.65733035 432.85767109 85.375 434.1875 C84.70001465 434.58606201 84.0250293 434.98462402 83.32958984 435.39526367 C76.70623771 439.25798535 69.92502026 442.71061538 63 446 C62.236875 446.36609375 61.47375 446.7321875 60.6875 447.109375 C36.67470542 458.20619674 9.62066206 466.18780596 -16.9296875 466.1328125 C-17.96006134 466.13376923 -18.99043518 466.13472595 -20.05203247 466.13571167 C-22.22202618 466.13638923 -24.39202196 466.13456462 -26.56201172 466.13037109 C-29.85779446 466.12502789 -33.15344026 466.13032491 -36.44921875 466.13671875 C-38.56770863 466.13605768 -40.68619843 466.13477592 -42.8046875 466.1328125 C-44.26453568 466.13584885 -44.26453568 466.13584885 -45.75387573 466.13894653 C-59.23858882 466.09345734 -71.72443945 463.76204695 -84.6875 460.1875 C-85.64503174 459.92396729 -86.60256348 459.66043457 -87.58911133 459.38891602 C-99.44052694 456.08785494 -110.92374542 452.42721686 -122 447 C-122.58861816 446.71785645 -123.17723633 446.43571289 -123.78369141 446.14501953 C-155.87373518 430.75581093 -185.31683521 408.45132027 -207 380 C-207.46043701 379.39808838 -207.92087402 378.79617676 -208.39526367 378.17602539 C-223.26703327 358.57611283 -234.51631267 337.05809167 -243 314 C-243.63035156 312.30423828 -243.63035156 312.30423828 -244.2734375 310.57421875 C-250.51602106 292.85560753 -254.04780408 272.24352576 -254.23828125 253.41796875 C-254.24798447 252.61418289 -254.25768768 251.81039703 -254.26768494 250.98225403 C-254.29256096 248.38395134 -254.30521251 245.78590987 -254.3125 243.1875 C-254.31511841 242.29861084 -254.31773682 241.40972168 -254.32043457 240.49389648 C-254.32530714 225.01445358 -253.14596744 210.19629439 -250 195 C-249.83983398 194.21351074 -249.67966797 193.42702148 -249.51464844 192.61669922 C-243.42434723 163.71039698 -230.59717601 137.25741109 -214 113 C-213.59410645 112.40558105 -213.18821289 111.81116211 -212.77001953 111.19873047 C-208.17000391 104.51807471 -208.17000391 104.51807471 -206 102 C-205.34 102 -204.68 102 -204 102 C-203.74347656 101.42636719 -203.48695313 100.85273438 -203.22265625 100.26171875 C-189.22763762 74.3731699 -151.85818074 48.61835053 -125 38 C-123.71748471 37.27015625 -122.44670134 36.51936945 -121.1875 35.75 C-115.0597124 32.27622074 -108.45220073 30.06427227 -101.85058594 27.67138672 C-91.42651195 23.88956568 -82.03460408 18.98017149 -72.69140625 13.015625 C-70.55263085 11.73137188 -68.3223203 10.90627134 -66 10 C-64.74722616 9.25464257 -63.49767859 8.50385551 -62.25 7.75 C-55.26720869 3.80167673 -47.60515092 1.45167355 -40 -1 C-39.18660156 -1.27199219 -38.37320313 -1.54398437 -37.53515625 -1.82421875 C-26.0406952 -5.03356332 -11.07238249 -3.9078997 0 0 Z" fill="#3a3630" transform="translate(522,258)"/><path d="M0 0 C3.43812276 1.39398247 5.79069253 3.00292338 8 6 C9.09629136 9.58469875 9.09802802 12.41543234 8 16 C5.52060264 19.16776475 2.57381692 21.21309154 -1 23 C-5.70777 23.39231417 -8.07079697 23.47336758 -12.3125 21.3125 C-15.14126219 18.87844881 -16.68136405 17.49050691 -18 14 C-18.18723846 10.8339679 -17.94666509 8.03272948 -17 5 C-11.9356163 -0.19423969 -7.024677 -1.03123892 0 0 Z" fill="#f5f0e8" transform="translate(529,288)"/></g></svg>`,
+    fade: `<svg width="22" height="23" viewBox="-15 -10 326 328" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-0.5, 148, 154)"><path fill="#3a3630" fill-rule="evenodd" d="M 133.50 300.32 C115.17,296.22 99.38,286.65 81.93,269.08 C54.82,241.79 36.01,201.94 27.95,154.70 C22.00,119.89 21.57,84.52 26.63,47.00 C28.39,33.92 29.89,30.63 35.38,27.82 C40.06,25.42 42.60,25.76 54.82,30.48 C73.94,37.87 100.09,44.58 118.89,46.93 C160.40,52.12 196.96,47.00 246.23,29.08 C253.57,26.41 256.90,26.46 261.10,29.29 C265.68,32.37 266.78,35.03 268.46,47.16 C274.92,93.83 271.56,144.47 259.25,186.00 C242.11,243.86 204.43,288.83 164.59,298.98 C157.11,300.89 139.44,301.65 133.50,300.32 Z M 165.28 244.09 C175.57,240.53 183.25,235.77 190.50,228.48 C198.23,220.70 203.17,212.39 206.04,202.35 C208.23,194.70 209.37,194.86 195.00,200.79 C177.83,207.89 169.25,209.45 147.50,209.46 C131.10,209.46 127.27,209.15 119.50,207.21 C109.53,204.71 99.04,200.97 91.65,197.28 C88.98,195.95 86.61,195.06 86.37,195.30 C85.35,196.31 92.10,213.58 95.55,218.79 C104.33,232.05 118.76,242.08 134.00,245.51 C142.60,247.45 157.53,246.77 165.28,244.09 Z M 190.62 128.41 C203.82,125.30 221.95,127.60 235.42,134.10 C237.58,135.14 239.49,135.85 239.65,135.68 C239.82,135.51 238.96,132.73 237.73,129.51 C231.72,113.71 211.83,101.73 196.94,104.92 C183.31,107.84 172.39,118.25 170.10,130.50 C169.64,132.94 169.46,135.12 169.68,135.35 C169.91,135.58 173.17,134.47 176.92,132.90 C180.68,131.32 186.84,129.30 190.62,128.41 Z M 59.97 133.02 C64.98,130.46 76.83,127.32 84.59,126.49 C92.29,125.67 107.13,128.13 115.42,131.61 C125.69,135.91 125.33,135.93 124.50,131.00 C122.81,120.97 116.59,112.90 106.54,107.67 C101.16,104.87 99.57,104.53 91.98,104.52 C84.39,104.50 82.74,104.85 76.93,107.71 C66.53,112.83 58.56,122.14 55.51,132.75 C54.72,135.50 55.06,135.52 59.97,133.02 Z"/></g></svg>`,
+  };
+    Object.entries(ARCANA_ART).forEach(([key, art]) => {
+      if (!arcanaSelected[key]) return;
+      const card = document.createElement('div');
+      card.className = 'modifier-mini-card';
+      card.innerHTML = art;
+      pillsEl.appendChild(card);
+    });
+
+    newGame();
+  }, totalDelay);
+}
+
+// ── Player Search ──────────────────────────────────────────────────────────────
+
+let playerChartInstance = null;
+let playerAllEntries = [];
+let playerFilterMods = new Set(); // arcana keys to require (empty = no mod filter)
+
+function playerSearch() {
+  const query = document.getElementById('player-search-input').value.trim().toLowerCase();
+  const area = document.getElementById('player-results-area');
+  if (!query) { area.innerHTML = '<div class="player-empty">enter a player name to search</div>'; return; }
+  area.innerHTML = '<div class="player-empty">searching…</div>';
+
+  if (firebaseReady && db) {
+    db.ref('scores').orderByChild('t').once('value')
+      .then(snap => {
+        const all = [];
+        snap.forEach(child => {
+          const raw = child.val();
+          const name = (raw.name || '').toLowerCase();
+          if (name && name.toLowerCase().includes(query)) {
+            all.push({
+              ...raw,
+              mods:        tryParseJson(raw.mods, []),
+              history:     tryParseJson(raw.history, null),
+              initialDeck: tryParseJson(raw.initialDeck, null),
+            });
+          }
+        });
+        playerAllEntries = all;
+        playerFilterMods = new Set();
+        renderPlayerResults(all, query);
+      })
+      .catch(err => {
+        area.innerHTML = '<div class="player-empty">error loading — check console</div>';
+        console.error(err);
+      });
+  } else {
+    const all = lbGetLocal().filter(e => (e.name || '').toLowerCase().includes(query));
+    playerAllEntries = all;
+    playerFilterMods = new Set();
+    renderPlayerResults(all, query);
+  }
+}
+
+function renderPlayerResults(all, query) {
+  const area = document.getElementById('player-results-area');
+  area.innerHTML = '';
+
+  if (all.length === 0) {
+    area.innerHTML = `<div class="player-empty">no player found matching "${query}"</div>`;
+    return;
+  }
+
+  // Best display name from results
+  const displayName = all.find(e => e.name)?.name || query;
+
+  // Stats
+  const totalRuns = all.length;
+  const bestTime  = Math.min(...all.map(e => e.t));
+  const avgTime   = Math.round(all.reduce((s, e) => s + e.t, 0) / all.length);
+
+  function fmtMs(ms) {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+  }
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'player-stats-header';
+  header.innerHTML = `<div class="player-name-display">${displayName}</div>`;
+  area.appendChild(header);
+
+  // Stat cards
+  const grid = document.createElement('div');
+  grid.className = 'player-stat-grid';
+  grid.innerHTML = `
+    <div class="player-stat-card">
+      <div class="player-stat-card-label">Total Runs</div>
+      <div class="player-stat-card-value">${totalRuns}</div>
+    </div>
+    <div class="player-stat-card">
+      <div class="player-stat-card-label">Best Time</div>
+      <div class="player-stat-card-value">${fmtMs(bestTime)}</div>
+    </div>
+    <div class="player-stat-card">
+      <div class="player-stat-card-label">Avg Time</div>
+      <div class="player-stat-card-value">${fmtMs(avgTime)}</div>
+    </div>
+  `;
+  area.appendChild(grid);
+
+  // Chart section
+  const chartSection = document.createElement('div');
+  chartSection.className = 'player-chart-section';
+
+  const chartLabelRow = document.createElement('div');
+  chartLabelRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;';
+  chartLabelRow.innerHTML = `<div class="player-chart-label">Improvement Chart</div>`;
+
+  const filterRow = document.createElement('div');
+  filterRow.className = 'player-chart-filters';
+
+  const filterLabel = document.createElement('div');
+  filterLabel.className = 'player-chart-filter-label';
+  filterLabel.textContent = 'mode';
+  filterRow.appendChild(filterLabel);
+
+  // Build arcana mini cards for filter
+  const ART = {
+    fill:  document.querySelector('#arc-fill .arcana-art').innerHTML,
+    morph: document.querySelector('#arc-morph .arcana-art').innerHTML,
+    clone: document.querySelector('#arc-clone .arcana-art').innerHTML,
+    hue:   document.querySelector('#arc-hue .arcana-art').innerHTML,
+    fade:  document.querySelector('#arc-fade .arcana-art').innerHTML,
+  };
+
+  ARCANA_KEYS.forEach(key => {
+    const card = document.createElement('div');
+    card.className = 'lb-mini-card';
+    card.id = 'plf-' + key;
+    card.style.cssText = 'width:32px;height:52px;';
+    card.innerHTML = `<div style="transform:scale(0.3);transform-origin:center;pointer-events:none;">${ART[key]}</div>`;
+    card.title = key;
+    card.onclick = () => {
+      if (playerFilterMods.has(key)) playerFilterMods.delete(key);
+      else playerFilterMods.add(key);
+      card.classList.toggle('active', playerFilterMods.has(key));
+      renderPlayerChart(playerAllEntries);
+    };
+    filterRow.appendChild(card);
+  });
+
+  chartLabelRow.appendChild(filterRow);
+  chartSection.appendChild(chartLabelRow);
+
+  const chartWrap = document.createElement('div');
+  chartWrap.className = 'player-chart-wrap';
+  const canvas = document.createElement('canvas');
+  canvas.id = 'player-chart-canvas';
+  canvas.height = 220;
+  chartWrap.appendChild(canvas);
+  chartSection.appendChild(chartWrap);
+  area.appendChild(chartSection);
+
+  // Recent runs section
+  const recentSection = document.createElement('div');
+  recentSection.className = 'player-recent-section';
+  const recentLabel = document.createElement('div');
+  recentLabel.className = 'player-chart-label';
+  recentLabel.textContent = 'Recent Runs';
+  recentSection.appendChild(recentLabel);
+
+  const recentList = document.createElement('div');
+  recentList.className = 'lb-list';
+  const sorted = [...all].sort((a, b) => b.d - a.d).slice(0, 10);
+  sorted.forEach(e => {
+    const hasReplay = !!(e.history && e.initialDeck);
+    const row = document.createElement('div');
+    row.className = 'lb-entry';
+    if (hasReplay) {
+      row.title = 'Click to watch replay';
+      row.addEventListener('click', () => openReplay(e));
+    } else {
+      row.style.cursor = 'default';
+      row.title = 'No replay data';
+    }
+
+    const dateEl = document.createElement('div');
+    dateEl.style.cssText = 'font-size:9px;color:var(--text-muted);flex-shrink:0;letter-spacing:0.5px;';
+    const d = new Date(e.d);
+    dateEl.textContent = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+    const modsEl = document.createElement('div');
+    modsEl.className = 'lb-mods';
+    if (!e.mods || e.mods.length === 0) {
+      const none = document.createElement('span');
+      none.className = 'lb-no-mods';
+      none.textContent = 'vanilla';
+      modsEl.appendChild(none);
+    } else {
+      e.mods.forEach(k => {
+        const pip = document.createElement('div');
+        pip.className = 'lb-mod-pip';
+        pip.innerHTML = MINI_ART[k] || '';
+        modsEl.appendChild(pip);
+      });
+    }
+
+    const timeEl = document.createElement('div');
+    timeEl.className = 'lb-time';
+    timeEl.textContent = fmtMs(e.t);
+
+    const replayHint = document.createElement('div');
+    replayHint.style.cssText = 'font-size:10px;flex-shrink:0;color:var(--text-muted);opacity:' + (hasReplay ? '0.45' : '0') + ';margin-left:auto;';
+    replayHint.textContent = '▶';
+
+    row.appendChild(dateEl);
+    row.appendChild(modsEl);
+    row.appendChild(timeEl);
+    row.appendChild(replayHint);
+    recentList.appendChild(row);
+  });
+  recentSection.appendChild(recentList);
+  area.appendChild(recentSection);
+
+  // Draw chart
+  renderPlayerChart(all);
+}
+
+// Stores the sorted entries matching the current chart render, for click lookup
+let playerChartEntries = [];
+
+function renderPlayerChart(all) {
+  // Filter by selected mods
+  let filtered = all;
+  if (playerFilterMods.size > 0) {
+    filtered = all.filter(e => [...playerFilterMods].every(k => (e.mods||[]).includes(k)));
+  }
+
+  // Sort by date
+  const sorted = [...filtered].sort((a, b) => a.d - b.d);
+  playerChartEntries = sorted;
+
+  const canvas = document.getElementById('player-chart-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  if (playerChartInstance) { playerChartInstance.destroy(); playerChartInstance = null; }
+
+  if (sorted.length === 0) {
+    const W = canvas.parentElement.clientWidth || 520;
+    canvas.width  = W;
+    canvas.height = 220;
+    ctx.clearRect(0, 0, W, 220);
+    ctx.fillStyle = '#7a766f';
+    ctx.font = '11px DM Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('no runs with selected modifiers', W/2, 110);
+    return;
+  }
+
+  // Build chart data — store index so we can map click back to entry
+  const points = sorted.map((e, idx) => ({ x: e.d, y: e.t / 1000, _idx: idx }));
+
+  // Personal record line
+  let pb = Infinity;
+  const pbPoints = sorted.map(e => {
+    const secs = e.t / 1000;
+    if (secs < pb) pb = secs;
+    return { x: e.d, y: pb };
+  });
+
+  const teal = '#2dd4bf';
+
+  const W = canvas.parentElement.clientWidth || 520;
+  canvas.width = W;
+
+  playerChartInstance = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        {
+          label: 'All runs',
+          data: points,
+          pointRadius: 4,
+          pointHoverRadius: 7,
+          pointHoverBackgroundColor: teal,
+          backgroundColor: 'rgba(240,237,232,0.28)',
+          borderColor: 'transparent',
+          showLine: false,
+        },
+        {
+          label: 'Personal best',
+          data: pbPoints,
+          type: 'line',
+          pointRadius: 0,
+          borderColor: teal,
+          borderWidth: 2,
+          fill: false,
+          tension: 0,
+          stepped: 'after',
+        },
+      ]
+    },
+    options: {
+      responsive: false,
+      animation: false,
+      onClick: (event, elements) => {
+        // Only handle clicks on dataset 0 (the scatter dots)
+        const hits = elements.filter(el => el.datasetIndex === 0);
+        if (hits.length === 0) return;
+        const entry = playerChartEntries[hits[0].index];
+        if (!entry) return;
+        if (entry.history && entry.initialDeck) {
+          openReplay(entry);
+        } else {
+          // Flash canvas border briefly to indicate no replay
+          canvas.style.outline = '2px solid var(--error)';
+          setTimeout(() => canvas.style.outline = '', 600);
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => {
+              const d = new Date(items[0].raw.x);
+              return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            },
+            label: item => {
+              if (item.datasetIndex !== 0) return null;
+              const s = item.raw.y;
+              const m = Math.floor(s/60), sec = Math.floor(s%60);
+              const entry = playerChartEntries[item.dataIndex];
+              const hasReplay = !!(entry && entry.history && entry.initialDeck);
+              return `${m}:${sec.toString().padStart(2,'0')}` + (hasReplay ? '  ▶ click to replay' : '');
+            }
+          },
+          filter: item => item.datasetIndex === 0,
+          backgroundColor: '#1a1917',
+          borderColor: '#2e2c29',
+          borderWidth: 1,
+          titleColor: '#7a766f',
+          bodyColor: '#f0ede8',
+          padding: 10,
+          titleFont: { family: 'DM Mono, monospace', size: 10 },
+          bodyFont:  { family: 'DM Mono, monospace', size: 11 },
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          ticks: {
+            color: '#7a766f',
+            font: { family: 'DM Mono, monospace', size: 9 },
+            maxTicksLimit: 5,
+            callback: val => {
+              const d = new Date(val);
+              return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+            }
+          },
+          grid: { color: '#2e2c29' },
+          border: { color: '#2e2c29' },
+        },
+        y: {
+          ticks: {
+            color: '#7a766f',
+            font: { family: 'DM Mono, monospace', size: 9 },
+            callback: val => {
+              const m = Math.floor(val/60), s = Math.floor(val%60);
+              return `${m}:${s.toString().padStart(2,'0')}`;
+            }
+          },
+          grid: { color: '#2e2c29' },
+          border: { color: '#2e2c29' },
+        }
+      }
+    }
+  });
+
+  // Show pointer cursor over dots
+  canvas.style.cursor = 'default';
+  canvas.addEventListener('mousemove', ev => {
+    const pts = playerChartInstance.getElementsAtEventForMode(ev, 'nearest', { intersect: true }, false);
+    canvas.style.cursor = pts.length && pts[0].datasetIndex === 0 ? 'pointer' : 'default';
+  });
+}
+
+// Allow Enter key in player search
+document.getElementById('player-search-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') playerSearch();
+});
+
+function openPlayerProfile(name) {
+  switchPanel('player');
+  const input = document.getElementById('player-search-input');
+  input.value = name;
+  // Small delay so the panel is visible before we search
+  setTimeout(() => playerSearch(), 50);
+}
+
+
+function openProfileModal() {
+  renderProfileModal();
+  const overlay = document.getElementById('profile-modal-overlay');
+  overlay.classList.add('open');
+  const input = document.getElementById('profile-name-input');
+  input.value = getDisplayName();
+  setTimeout(() => input.focus(), 120);
+}
+
+function closeProfileModal() {
+  document.getElementById('profile-modal-overlay').classList.remove('open');
+  document.getElementById('profile-name-msg').textContent = '';
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('profile-modal-overlay')) closeProfileModal();
+}
+
+function saveProfileName() {
+  const input = document.getElementById('profile-name-input');
+  const name = input.value.trim();
+  setDisplayName(name);
+  const msg = document.getElementById('profile-name-msg');
+  msg.className = 'profile-success';
+  msg.textContent = 'Saved!';
+  setTimeout(() => { msg.textContent = ''; }, 2000);
+}
+
+function renderProfileModal() {
+  const section = document.getElementById('profile-google-section');
+  const isAnon = !currentUser || currentUser.isAnonymous;
+  const googleSvg = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;flex-shrink:0;"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>`;
+
+  if (isAnon) {
+    section.innerHTML = `
+      <div class="profile-label">Google account</div>
+      <p class="profile-status">You're anonymous. Link a Google account to keep your scores across devices.</p>
+      <button class="profile-google-btn" onclick="handleGoogleLink()">${googleSvg} Link Google Account</button>
+      <button class="profile-google-btn" style="margin-top:6px;" onclick="handleGoogleSignIn()">${googleSvg} Sign in with Google</button>
+      <div id="profile-google-msg"></div>
+    `;
+  } else {
+    section.innerHTML = `
+      <div class="profile-label">Google account</div>
+      <p class="profile-status">Signed in as <strong>${currentUser.email}</strong></p>
+      <button class="profile-google-btn" onclick="handleSignOut()">Sign out</button>
+    `;
+  }
+}
+
+function handleGoogleLink() {
+  if (!firebase || !firebase.auth) return;
+  const provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().currentUser.linkWithPopup(provider)
+    .then(() => { renderProfileModal(); updateHeaderNamePill(); })
+    .catch(err => {
+      if (err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') return;
+      const msg = document.getElementById('profile-google-msg');
+      if (!msg) return;
+      msg.className = 'profile-error';
+      msg.textContent = err.code === 'auth/credential-already-in-use'
+        ? 'That Google account is already linked to a different user.'
+        : err.message;
+    });
+}
+
+function handleGoogleSignIn() {
+  if (!firebase || !firebase.auth) return;
+  const provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(provider)
+    .then(() => { renderProfileModal(); updateHeaderNamePill(); closeProfileModal(); })
+    .catch(err => {
+      if (err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') return;
+      const msg = document.getElementById('profile-google-msg');
+      if (msg) { msg.className = 'profile-error'; msg.textContent = err.message; }
+    });
+}
+
+function handleSignOut() {
+  firebase.auth().signOut();
+  closeProfileModal();
+}
+
+// Also allow Enter key to save name
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeProfileModal();
+});
+document.getElementById('profile-name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveProfileName();
+});
+
+
+</script>
+</body>
+</html>
