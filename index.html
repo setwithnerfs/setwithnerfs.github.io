@@ -1536,6 +1536,9 @@ function newGame() {
   // Reset fill engine
   if (fillRaf) { cancelAnimationFrame(fillRaf); fillRaf = null; }
   fillPhaseStart = null;
+  // Stop fade engine (restarted below if fadeOn)
+  if (fadeRaf) { cancelAnimationFrame(fadeRaf); fadeRaf = null; }
+  fadeStart = null;
   // Wipe all sprites
   sprites.clear();
   document.getElementById('board').innerHTML = '';
