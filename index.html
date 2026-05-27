@@ -1564,6 +1564,7 @@ function newGame() {
   const container = document.getElementById('board-container');
   container.style.display = '';
   document.getElementById('below-board-btns').style.display = 'flex';
+  document.getElementById('deck-info').style.display = '';
   document.getElementById('end-screen').classList.remove('show');
   document.getElementById('score').textContent = '0';
   clearInterval(timerInterval);
@@ -1983,6 +1984,7 @@ function endGame() {
   setTimeout(() => {
     document.getElementById('board-container').style.display = 'none';
     document.getElementById('below-board-btns').style.display = 'none';
+    document.getElementById('deck-info').style.display = 'none';
     document.getElementById('final-score').textContent = score;
     document.getElementById('final-time').textContent  = formatTime();
     document.getElementById('end-screen').classList.add('show');
