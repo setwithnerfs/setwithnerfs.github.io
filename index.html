@@ -1985,7 +1985,7 @@ function endGame() {
     document.getElementById('final-time').textContent  = formatTime();
     document.getElementById('end-screen').classList.add('show');
     // Record to leaderboard
-    const activeMods = Object.keys(arcanaSelected).filter(k => arcanaSelected[k]);
+    const activeMods = [fillOn && 'fill', morphOn && 'morph', cloneOn && 'clone', animOn && 'hue', fadeOn && 'fade'].filter(Boolean);
     lbRecord(finalMs, activeMods);
   }, 600);
 }
