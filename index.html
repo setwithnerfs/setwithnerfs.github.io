@@ -1324,7 +1324,7 @@
     </div>
     <div class="modifier-pills" id="modifier-pills"></div>
     <div class="below-divider"></div>
-    <div style="display:flex;gap:8px;margin-top:4px;">
+    <div style="display:flex;gap:8px;margin-top:4px;" id="below-board-btns">
       <button class="btn btn-primary" onclick="newGame()">New Game</button>
       <button class="btn" onclick="showArcana()">Modifiers</button>
     </div>
@@ -1563,6 +1563,7 @@ function newGame() {
 
   const container = document.getElementById('board-container');
   container.style.display = '';
+  document.getElementById('below-board-btns').style.display = 'flex';
   document.getElementById('end-screen').classList.remove('show');
   document.getElementById('score').textContent = '0';
   clearInterval(timerInterval);
@@ -1981,6 +1982,7 @@ function endGame() {
   const finalMs = startTime ? (Date.now() - startTime) : 0;
   setTimeout(() => {
     document.getElementById('board-container').style.display = 'none';
+    document.getElementById('below-board-btns').style.display = 'none';
     document.getElementById('final-score').textContent = score;
     document.getElementById('final-time').textContent  = formatTime();
     document.getElementById('end-screen').classList.add('show');
@@ -2006,6 +2008,7 @@ function resetGame() {
   document.getElementById('history-panel').style.display = 'none';
 }
 
+let _histSVGCounter = 0;
 function histCardSVG(card) {
   const { color, shape, shade, number } = cardTraits(card);
   const count = number + 1;
@@ -2029,7 +2032,7 @@ function histCardSVG(card) {
     } else if (shade === 1) {
       symbols += `<g transform="${g}"><path d="${pathD}" fill="none" stroke="${grad}" stroke-width="22"/></g>`;
     } else {
-      const clipId = `hc-${card}-${i}`;
+      const clipId = `hc-${++_histSVGCounter}-${i}`;
       let stripes = '';
       for (let si = 0; si < 20; si++) stripes += `<rect x="0" y="${si*20}" width="200" height="10" fill="${grad}"/>`;
       symbols += `<g transform="${g}"><defs><clipPath id="${clipId}"><path d="${pathD}"/></clipPath></defs><g clip-path="url(#${clipId})">${stripes}</g><path d="${pathD}" fill="none" stroke="${grad}" stroke-width="22"/></g>`;
@@ -3252,6 +3255,13 @@ function startFromArcana() {
     fillOn   = arcanaSelected.fill;
     animOn   = arcanaSelected.hue;
     fadeOn   = arcanaSelected.fade;
+
+    // Explicitly stop any engines that are now off so they reset their state
+    // (e.g. morphCurrentPaths) before new cards are created via cardSVG.
+    if (!morphOn) stopMorph();
+    if (!cloneOn) stopClone();
+    if (!fillOn)  stopFill();
+    if (!fadeOn)  stopFade();
 
     // Build modifier mini tarot cards in the status bar
     const pillsEl = document.getElementById('modifier-pills');
