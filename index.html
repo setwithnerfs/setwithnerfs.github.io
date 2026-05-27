@@ -2740,17 +2740,19 @@ function renderLbEntries(entries) {
   const list = document.getElementById('lb-list');
   list.innerHTML = '';
 
-  // filter
-  let filtered = entries;
-  if (lbFilter.size > 0) {
-    filtered = entries.filter(e => [...lbFilter].every(k => e.mods.includes(k)));
+  // filter — empty = vanilla only, mods selected = must include ALL selected mods
+  let filtered;
+  if (lbFilter.size === 0) {
+    filtered = entries.filter(e => !e.mods || e.mods.length === 0);
+  } else {
+    filtered = entries.filter(e => [...lbFilter].every(k => (e.mods||[]).includes(k)));
   }
   filtered.sort((a, b) => a.t - b.t);
 
   if (filtered.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'lb-empty';
-    empty.textContent = lbFilter.size ? 'no runs with these modifiers' : 'no runs yet';
+    empty.textContent = lbFilter.size ? 'no runs with these modifiers' : 'no vanilla runs yet';
     list.appendChild(empty);
     return;
   }
@@ -2784,7 +2786,10 @@ function renderLbEntries(entries) {
       e.mods.forEach(k => {
         const pip = document.createElement('div');
         pip.className = 'lb-mod-pip';
-        pip.innerHTML = MINI_ART[k] || '';
+        const arcArt = document.querySelector('#arc-' + k + ' .arcana-art');
+        pip.innerHTML = arcArt
+          ? `<div style="transform:scale(0.33);transform-origin:center;pointer-events:none;">${arcArt.innerHTML}</div>`
+          : (MINI_ART[k] || '');
         modsEl.appendChild(pip);
       });
     }
