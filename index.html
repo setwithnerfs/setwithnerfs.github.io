@@ -1342,6 +1342,16 @@
         <div class="end-stat-value" id="final-time">0:00</div>
       </div>
     </div>
+    <div id="end-name-prompt" style="display:none;flex-direction:column;align-items:center;gap:6px;">
+      <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);">Save score as</div>
+      <div style="display:flex;gap:8px;">
+        <input id="end-name-input" type="text" maxlength="24" placeholder="your name"
+          style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:8px 12px;outline:none;transition:border-color 0.15s;width:160px;"
+          onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor=''"
+          onkeydown="if(event.key==='Enter')saveEndName()" />
+        <button class="btn btn-primary" onclick="saveEndName()">Save</button>
+      </div>
+    </div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-primary" onclick="newGame()">Play Again</button>
       <button class="btn" onclick="showArcana()">Modifiers</button>
@@ -2705,19 +2715,20 @@ function switchTab(tab) {
 function buildLbFilterCards() {
   const el = document.getElementById('lb-filter-cards');
   if (el.children.length > 0) return; // already built
-  const ART = {
-    fill:  document.querySelector('#arc-fill .arcana-art').innerHTML,
-    morph: document.querySelector('#arc-morph .arcana-art').innerHTML,
-    clone: document.querySelector('#arc-clone .arcana-art').innerHTML,
-    hue:   document.querySelector('#arc-hue .arcana-art').innerHTML,
-    fade:  document.querySelector('#arc-fade .arcana-art').innerHTML,
-  };
   ARCANA_KEYS.forEach(key => {
     const card = document.createElement('div');
     card.className = 'lb-mini-card' + (lbFilter.has(key) ? ' active' : '');
     card.id = 'lbf-' + key;
     card.title = ARCANA_NAMES[key] || key;
-    card.innerHTML = `<div style="transform:scale(0.33);transform-origin:center;pointer-events:none;">${ART[key]}</div>`;
+    const srcSvg = document.querySelector('#arc-' + key + ' .arcana-art svg');
+    if (srcSvg) {
+      const clone = srcSvg.cloneNode(true);
+      clone.setAttribute('width', '28');
+      clone.setAttribute('height', '44');
+      clone.style.display = 'block';
+      clone.style.pointerEvents = 'none';
+      card.appendChild(clone);
+    }
     card.onclick = () => {
       lbFilter.has(key) ? lbFilter.delete(key) : lbFilter.add(key);
       const isActive = lbFilter.has(key);
@@ -2787,9 +2798,20 @@ function renderLbEntries(entries) {
         const pip = document.createElement('div');
         pip.className = 'lb-mod-pip';
         const arcArt = document.querySelector('#arc-' + k + ' .arcana-art');
-        pip.innerHTML = arcArt
-          ? `<div style="transform:scale(0.33);transform-origin:center;pointer-events:none;">${arcArt.innerHTML}</div>`
-          : (MINI_ART[k] || '');
+        if (arcArt) {
+          const svgEl = arcArt.querySelector('svg');
+          if (svgEl) {
+            const clone = svgEl.cloneNode(true);
+            clone.setAttribute('width', '16');
+            clone.setAttribute('height', '16');
+            clone.style.display = 'block';
+            pip.appendChild(clone);
+          } else {
+            pip.innerHTML = MINI_ART[k] || '';
+          }
+        } else {
+          pip.innerHTML = MINI_ART[k] || '';
+        }
         modsEl.appendChild(pip);
       });
     }
