@@ -3523,16 +3523,21 @@ function renderAllPlayers() {
   const area = document.getElementById('player-results-area');
   area.innerHTML = '<div class="player-empty">loading…</div>';
   const build = (entries) => {
-    // Group by uid (falls back to name for old entries without uid)
+    // Group by name when available (so "School" across multiple sessions merges),
+    // fall back to uid for unnamed anon players (keyed by uid so each anon is distinct)
     const map = new Map();
     entries.forEach(e => {
-      const key = e.uid || e.name || 'unknown';
-      const displayName = (e.name || '').trim()
-        || (e.uid === currentUserId ? getDisplayName() : null)
+      const name = (e.name || '').trim();
+      const isYou = e.uid === currentUserId;
+      // Use name as key for named players; uid for unnamed anons
+      const key = name || e.uid || 'unknown';
+      const displayName = name
+        || (isYou ? getDisplayName() : null)
         || (e.uid ? nameFromUid(e.uid) : 'anon');
-      if (!map.has(key)) map.set(key, { name: displayName, uid: e.uid || null, best: Infinity, runs: 0, isYou: e.uid === currentUserId });
+      if (!map.has(key)) map.set(key, { name: displayName, uid: e.uid || null, best: Infinity, runs: 0, isYou });
       const p = map.get(key);
-      if (e.name && p.name !== e.name) p.name = e.name; // prefer real name once available
+      if (name && p.name !== name) p.name = name; // prefer real name once available
+      if (isYou) p.isYou = true; // mark as you if any entry matches
       p.runs++;
       const t = typeof e.t === 'number' ? e.t : Infinity;
       if (t < p.best) p.best = t;
@@ -3589,15 +3594,51 @@ function openPlayerByUid(uid, displayName) {
   const area = document.getElementById('player-results-area');
   document.getElementById('player-search-input').value = displayName;
   area.innerHTML = '<div class="player-empty">loading…</div>';
-  const src = (firebaseReady && db)
-    ? db.ref('scores').orderByChild('uid').equalTo(uid).once('value')
-        .then(snap => { const e = []; snap.forEach(c => e.push({ ...c.val(), mods: tryParseJson(c.val().mods, []), history: tryParseJson(c.val().history, null), initialDeck: tryParseJson(c.val().initialDeck, null) })); return e; })
-    : Promise.resolve(lbGetLocal().filter(e => e.uid === uid));
-  src.then(all => {
+
+  if (firebaseReady && db) {
+    // Fetch by uid AND by name, then merge so runs from different sessions all appear
+    const byUid = db.ref('scores').orderByChild('uid').equalTo(uid).once('value')
+      .then(snap => { const e = []; snap.forEach(c => e.push({ _key: c.key, ...c.val() })); return e; });
+
+    const nameLower = (displayName || '').toLowerCase();
+    const byName = nameLower
+      ? db.ref('scores').orderByChild('t').once('value').then(snap => {
+          const e = [];
+          snap.forEach(c => {
+            const raw = c.val();
+            if ((raw.name || '').toLowerCase() === nameLower) e.push({ _key: c.key, ...raw });
+          });
+          return e;
+        })
+      : Promise.resolve([]);
+
+    Promise.all([byUid, byName]).then(([fromUid, fromName]) => {
+      // Merge, dedup by Firebase key
+      const seen = new Set();
+      const merged = [];
+      [...fromUid, ...fromName].forEach(raw => {
+        if (!seen.has(raw._key)) {
+          seen.add(raw._key);
+          merged.push({
+            ...raw,
+            mods:        tryParseJson(raw.mods, []),
+            history:     tryParseJson(raw.history, null),
+            initialDeck: tryParseJson(raw.initialDeck, null),
+          });
+        }
+      });
+      playerAllEntries = merged;
+      playerFilterMods = new Set();
+      renderPlayerResults(merged, displayName);
+    }).catch(() => { area.innerHTML = '<div class="player-empty">error loading</div>'; });
+  } else {
+    const all = lbGetLocal()
+      .filter(e => e.uid === uid || (displayName && (e.name || '').toLowerCase() === displayName.toLowerCase()))
+      .map(e => ({ ...e, mods: tryParseJson(e.mods, []), history: tryParseJson(e.history, null), initialDeck: tryParseJson(e.initialDeck, null) }));
     playerAllEntries = all;
     playerFilterMods = new Set();
     renderPlayerResults(all, displayName);
-  }).catch(() => { area.innerHTML = '<div class="player-empty">error loading</div>'; });
+  }
 }
 
 function playerSearch() {
