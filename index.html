@@ -3089,17 +3089,19 @@ function renderLbEntries(entries) {
 
     const nameEl = document.createElement('div');
     nameEl.className = 'lb-name';
-    if (e.name) {
+    const anonName = e.uid ? nameFromUid(e.uid) : null;
+    const displayName = e.name || anonName;
+    if (e.uid && e.uid === currentUserId && !e.name) {
+      nameEl.textContent = 'you';
+      nameEl.style.cssText = 'color:var(--teal);';
+    } else if (displayName) {
       nameEl.className += ' lb-name-link';
-      nameEl.textContent = e.name;
-      nameEl.title = "View " + e.name + "'s profile";
+      nameEl.textContent = displayName;
+      nameEl.title = "View " + displayName + "'s profile";
       nameEl.style.cssText = 'cursor:pointer;transition:color 0.15s;';
       nameEl.addEventListener('mouseenter', () => nameEl.style.color = 'var(--teal)');
       nameEl.addEventListener('mouseleave', () => nameEl.style.color = '');
-      nameEl.addEventListener('click', ev => { ev.stopPropagation(); openPlayerProfile(e.name, e.uid); });
-    } else if (e.uid && e.uid === currentUserId) {
-      nameEl.textContent = 'you';
-      nameEl.style.cssText = 'color:var(--teal);';
+      nameEl.addEventListener('click', ev => { ev.stopPropagation(); openPlayerProfile(displayName, e.uid); });
     } else {
       nameEl.textContent = 'anon';
       nameEl.style.cssText = 'color:var(--text-muted);font-style:italic;';
@@ -3529,17 +3531,17 @@ function renderAllPlayers() {
     // fall back to uid for unnamed anon players (keyed by uid so each anon is distinct)
     const map = new Map();
     entries.forEach(e => {
-      const name = (e.name || '').trim();
       const isYou = e.uid === currentUserId;
-      // Use name as key for named players; uid for unnamed anons
-      const key = name || e.uid || 'unknown';
-      const displayName = name
+      // Always key by uid — name is display only, never used as identity
+      const key = e.uid || 'unknown';
+      const displayName = (e.name || '').trim()
         || (isYou ? getDisplayName() : null)
         || (e.uid ? nameFromUid(e.uid) : 'anon');
       if (!map.has(key)) map.set(key, { name: displayName, uid: e.uid || null, best: Infinity, runs: 0, isYou });
       const p = map.get(key);
-      if (name && p.name !== name) p.name = name; // prefer real name once available
-      if (isYou) p.isYou = true; // mark as you if any entry matches
+      // Prefer a real name if we see one for this uid
+      if (e.name && e.name.trim()) p.name = e.name.trim();
+      if (isYou) p.isYou = true;
       p.runs++;
       const t = typeof e.t === 'number' ? e.t : Infinity;
       if (t < p.best) p.best = t;
@@ -3559,12 +3561,8 @@ function renderAllPlayers() {
       row.onmouseenter = () => { row.style.background='#222'; row.style.borderColor='var(--teal)'; };
       row.onmouseleave = () => { row.style.background='var(--surface)'; row.style.borderColor='var(--border)'; };
       row.onclick = () => {
-        // Always use name-based lookup for named players (openPlayerByUid merges uid+name anyway)
-        // For unnamed anons, fall back to uid lookup via search
-        if (p.name && p.name !== 'anon') {
-          document.getElementById('player-search-input').value = p.name;
-          playerSearch();
-        } else if (p.uid) {
+        // Always look up by uid — name is display only
+        if (p.uid) {
           openPlayerByUid(p.uid, p.name);
         } else {
           document.getElementById('player-search-input').value = p.name;
