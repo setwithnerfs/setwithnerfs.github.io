@@ -465,7 +465,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 16px 16px 4px;
+      padding: 16px 16px 32px;
       gap: 0;
     }
 
@@ -1418,7 +1418,7 @@
   </div>
   <div class="modifier-pills" id="modifier-pills"></div>
   <div class="below-divider"></div>
-  <div style="display:flex;gap:8px;margin-top:4px;margin-bottom:24px;flex-wrap:wrap;justify-content:center;" id="below-board-btns">
+  <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;justify-content:center;" id="below-board-btns">
     <button class="btn btn-primary" onclick="newGame()">New Game</button>
     <button class="btn" onclick="showArcana()">Modifiers</button>
     <button class="btn" id="btn-layout" onclick="toggleLayout()" title="Toggle layout (Shift+B)">Portrait</button>
@@ -2800,6 +2800,12 @@ let currentUserId = null;
 let currentUser = null; // full Firebase user object
 let _pendingScore = null;
 
+// ── Anonymous name generation (same animal list as setwithfriends) ────────────
+const ANIMALS = ["Alligator","Ant","Anteater","Antelope","Arctic Fox","Armadillo","Badger","Bat","Beaver","Bee","Beetle","Black Bear","Buffalo","Butterfly","Camel","Cat","Chameleon","Cheetah","Chicken","Cicada","Clam","Cockatoo","Cockroach","Cow","Coyote","Crab","Cricket","Crow","Deer","Dog","Dolphin","Donkey","Dove","Dragonfly","Duck","Eagle","Eel","Elephant","Ferret","Fish","Fly","Fox","Frog","Gazelle","Goat","Grasshopper","Grizzly Bear","Groundhog","Guinea Pig","Hedgehog","Hen","Hippopotamus","Horse","Hummingbird","Hyena","Koala","Leopard","Lion","Llama","Lobster","Lynx","Meerkat","Mole","Moose","Moth","Mouse","Octopus","Orangutan","Orca","Ostrich","Owl","Panda Bear","Panther","Parrot","Penguin","Pig","Pigeon","Polar Bear","Rabbit","Raccoon","Reindeer","Robin","Sea Lion","Sea Otter","Seagull","Seahorse","Seal","Shark","Sheep","Shrimp","Slug","Snail","Snake","Sparrow","Squid","Squirrel","Starfish","Swan","Tiger","Turkey","Turtle","Wallaby","Walrus","Wasp","Water Buffalo","Weasel","Weaver","Whale","Wildcat","Wilddog","Wolf","Wolverine","Wombat","Woodpecker"];
+function generateName() {
+  return 'Anonymous ' + ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+}
+
 // Display name: stored in localStorage, synced to Firebase scores
 function getDisplayName() {
   return localStorage.getItem('setgame_display_name') || '';
@@ -2854,6 +2860,10 @@ function showToast(msg, type = '', duration = 3500) {
         // Auto-populate display name from Google account if not set manually
         if (!getDisplayName() && user.displayName) {
           setDisplayName(user.displayName);
+        }
+        // Assign a random animal name to anons who have no name at all
+        if (!getDisplayName()) {
+          setDisplayName(generateName());
         }
         updateHeaderNamePill();
         if (document.getElementById('panel-leaderboard').classList.contains('active')) {
@@ -3484,8 +3494,8 @@ function renderAllPlayers() {
   const build = (entries) => {
     const map = new Map();
     entries.forEach(e => {
-      const n = (e.name||'').trim(); if (!n) return;
-      if (!map.has(n)) map.set(n, {name:n, best:Infinity, runs:0});
+      const n = (e.name||'').trim() || 'Anonymous';
+      if (!map.has(n)) map.set(n, {name:n, best:Infinity, runs:0, isAnon: !e.name});
       const p = map.get(n); p.runs++;
       const t = typeof e.t === 'number' ? e.t : Infinity;
       if (t < p.best) p.best = t;
