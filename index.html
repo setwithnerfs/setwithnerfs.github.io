@@ -3140,6 +3140,7 @@ function renderLeaderboard() {
             initialDeck: tryParseJson(raw.initialDeck, null),
           });
         });
+        cachedScoreEntries = entries; // cache for player list
         renderLbEntries(entries);
       })
       .catch(err => {
@@ -3518,6 +3519,7 @@ function startFromArcana() {
 let playerChartInstance = null;
 let playerAllEntries = [];
 let playerFilterMods = new Set(); // arcana keys to require (empty = no mod filter)
+let cachedScoreEntries = null; // all score entries fetched from Firebase, reused across player list + search
 
 function renderAllPlayers() {
   const area = document.getElementById('player-results-area');
@@ -3591,7 +3593,20 @@ function renderAllPlayers() {
     area.appendChild(list);
   };
   if (firebaseReady && db) {
-    db.ref('scores').once('value').then(snap => { const e=[]; snap.forEach(c=>e.push(c.val())); build(e); }).catch(()=>{ area.innerHTML='<div class="player-empty">error loading</div>'; });
+    // Reuse cached leaderboard entries if available; otherwise fetch with same ordered query
+    if (cachedScoreEntries) {
+      build(cachedScoreEntries);
+    } else {
+      db.ref('scores').orderByChild('t').limitToFirst(100).once('value').then(snap => {
+        const e = [];
+        snap.forEach(c => {
+          const raw = c.val();
+          e.push({ ...raw, mods: tryParseJson(raw.mods, []), history: tryParseJson(raw.history, null), initialDeck: tryParseJson(raw.initialDeck, null) });
+        });
+        cachedScoreEntries = e;
+        build(e);
+      }).catch(err => { console.error('[PLAYERS] error:', err); area.innerHTML='<div class="player-empty">error loading</div>'; });
+    }
   } else { build(lbGetLocal()); }
 }
 
@@ -3652,35 +3667,34 @@ function playerSearch() {
   if (!query) { renderAllPlayers(); return; }
   area.innerHTML = '<div class="player-empty">searching…</div>';
 
-  if (firebaseReady && db) {
-    db.ref('scores').orderByChild('t').once('value')
-      .then(snap => {
-        const all = [];
-        snap.forEach(child => {
-          const raw = child.val();
-          const name = (raw.name || '').toLowerCase();
-          if (name && name.toLowerCase().includes(query)) {
-            all.push({
-              ...raw,
-              mods:        tryParseJson(raw.mods, []),
-              history:     tryParseJson(raw.history, null),
-              initialDeck: tryParseJson(raw.initialDeck, null),
-            });
-          }
-        });
-        playerAllEntries = all;
-        playerFilterMods = new Set();
-        renderPlayerResults(all, query);
-      })
-      .catch(err => {
-        area.innerHTML = '<div class="player-empty">error loading — check console</div>';
-        console.error(err);
-      });
-  } else {
-    const all = lbGetLocal().filter(e => (e.name || '').toLowerCase().includes(query));
+  const searchInEntries = (entries) => {
+    const all = entries.filter(e => (e.name || '').toLowerCase().includes(query));
     playerAllEntries = all;
     playerFilterMods = new Set();
     renderPlayerResults(all, query);
+  };
+
+  if (firebaseReady && db) {
+    if (cachedScoreEntries) {
+      searchInEntries(cachedScoreEntries);
+    } else {
+      db.ref('scores').orderByChild('t').limitToFirst(100).once('value')
+        .then(snap => {
+          const entries = [];
+          snap.forEach(child => {
+            const raw = child.val();
+            entries.push({ ...raw, mods: tryParseJson(raw.mods, []), history: tryParseJson(raw.history, null), initialDeck: tryParseJson(raw.initialDeck, null) });
+          });
+          cachedScoreEntries = entries;
+          searchInEntries(entries);
+        })
+        .catch(err => {
+          area.innerHTML = '<div class="player-empty">error loading — check console</div>';
+          console.error(err);
+        });
+    }
+  } else {
+    searchInEntries(lbGetLocal());
   }
 }
 
