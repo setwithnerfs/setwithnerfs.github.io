@@ -3557,7 +3557,12 @@ function renderAllPlayers() {
       row.onmouseenter = () => { row.style.background='#222'; row.style.borderColor='var(--teal)'; };
       row.onmouseleave = () => { row.style.background='var(--surface)'; row.style.borderColor='var(--border)'; };
       row.onclick = () => {
-        if (p.uid) {
+        // Always use name-based lookup for named players (openPlayerByUid merges uid+name anyway)
+        // For unnamed anons, fall back to uid lookup via search
+        if (p.name && p.name !== 'anon') {
+          document.getElementById('player-search-input').value = p.name;
+          playerSearch();
+        } else if (p.uid) {
           openPlayerByUid(p.uid, p.name);
         } else {
           document.getElementById('player-search-input').value = p.name;
@@ -3822,7 +3827,9 @@ function renderPlayerResults(all, query) {
       e.mods.forEach(k => {
         const pip = document.createElement('div');
         pip.className = 'lb-mod-pip';
-        pip.innerHTML = MINI_ART[k] || '';
+        // Use the live DOM arcana art (same as filter cards) so all icons match
+        const arcEl = document.querySelector('#arc-' + k + ' .arcana-art');
+        pip.innerHTML = arcEl ? arcEl.innerHTML : (MINI_ART[k] || '');
         modsEl.appendChild(pip);
       });
     }
