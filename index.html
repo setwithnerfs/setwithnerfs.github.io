@@ -2884,10 +2884,10 @@ function showToast(msg, type = '', duration = 3500) {
           db.ref('scores').orderByChild('uid').equalTo(currentUserId).once('value').then(snap => {
             snap.forEach(child => {
               if (!child.val().name) {
-                db.ref('scores/' + child.key + '/name').set(myName);
+                db.ref('scores/' + child.key + '/name').set(myName).catch(() => {});
               }
             });
-          });
+          }).catch(() => {});
         }
         updateHeaderNamePill();
         if (document.getElementById('panel-leaderboard').classList.contains('active')) {
@@ -3612,8 +3612,8 @@ function playerSearch() {
         const all = [];
         snap.forEach(child => {
           const raw = child.val();
-          const name = (raw.name || (raw.uid ? nameFromUid(raw.uid) : '')).toLowerCase();
-          if (name && name.includes(query)) {
+          const name = (raw.name || '').toLowerCase();
+          if (name && name.toLowerCase().includes(query)) {
             all.push({
               ...raw,
               mods:        tryParseJson(raw.mods, []),
