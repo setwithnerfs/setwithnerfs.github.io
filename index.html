@@ -2865,6 +2865,17 @@ function showToast(msg, type = '', duration = 3500) {
         if (!getDisplayName()) {
           setDisplayName(generateName());
         }
+        // Backfill: update any of this user's existing scores that have no name
+        if (db) {
+          const myName = getDisplayName();
+          db.ref('scores').orderByChild('uid').equalTo(currentUserId).once('value').then(snap => {
+            const updates = {};
+            snap.forEach(child => {
+              if (!child.val().name) updates[child.key + '/name'] = myName;
+            });
+            if (Object.keys(updates).length) db.ref('scores').update(updates);
+          });
+        }
         updateHeaderNamePill();
         if (document.getElementById('panel-leaderboard').classList.contains('active')) {
           renderLeaderboard();
@@ -3063,19 +3074,26 @@ function renderLbEntries(entries) {
     row.appendChild(rank);
     row.appendChild(modsEl);
 
+    const nameEl = document.createElement('div');
+    nameEl.className = 'lb-name';
     if (e.name) {
-      const nameEl = document.createElement('div');
-      nameEl.className = 'lb-name lb-name-link';
+      nameEl.className += ' lb-name-link';
       nameEl.textContent = e.name;
       nameEl.title = "View " + e.name + "'s profile";
       nameEl.style.cssText = 'cursor:pointer;transition:color 0.15s;';
       nameEl.addEventListener('mouseenter', () => nameEl.style.color = 'var(--teal)');
       nameEl.addEventListener('mouseleave', () => nameEl.style.color = '');
       nameEl.addEventListener('click', ev => { ev.stopPropagation(); openPlayerProfile(e.name); });
-      row.appendChild(nameEl);
+    } else if (e.uid && e.uid === currentUserId) {
+      nameEl.textContent = 'you';
+      nameEl.style.cssText = 'color:var(--teal);';
+    } else {
+      nameEl.textContent = 'anon';
+      nameEl.style.cssText = 'color:var(--text-muted);font-style:italic;';
     }
+    row.appendChild(nameEl);
 
-    if (e.uid && e.uid === currentUserId) {
+    if (e.name && e.uid && e.uid === currentUserId) {
       const you = document.createElement('div');
       you.style.cssText = 'font-size:9px;letter-spacing:1px;color:var(--teal);flex-shrink:0;';
       you.textContent = 'you';
@@ -3492,16 +3510,21 @@ function renderAllPlayers() {
   const area = document.getElementById('player-results-area');
   area.innerHTML = '<div class="player-empty">loading…</div>';
   const build = (entries) => {
+    // Group by uid (falls back to name for old entries without uid)
     const map = new Map();
     entries.forEach(e => {
-      const n = (e.name||'').trim() || 'Anonymous';
-      if (!map.has(n)) map.set(n, {name:n, best:Infinity, runs:0, isAnon: !e.name});
-      const p = map.get(n); p.runs++;
+      const key = e.uid || e.name || 'unknown';
+      const displayName = (e.name || '').trim() || (e.uid === currentUserId ? getDisplayName() : null) || 'anon';
+      if (!map.has(key)) map.set(key, { name: displayName, best: Infinity, runs: 0, isYou: e.uid === currentUserId });
+      const p = map.get(key);
+      // Update name if we now have one (scores may be in any order)
+      if (e.name && p.name === 'anon') p.name = e.name;
+      p.runs++;
       const t = typeof e.t === 'number' ? e.t : Infinity;
       if (t < p.best) p.best = t;
     });
     if (!map.size) { area.innerHTML = '<div class="player-empty">no players yet</div>'; return; }
-    const players = [...map.values()].sort((a,b) => a.name.localeCompare(b.name));
+    const players = [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
     area.innerHTML = '';
     const lbl = document.createElement('div');
     lbl.style.cssText = 'font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);width:100%;margin-bottom:4px;';
@@ -3516,8 +3539,15 @@ function renderAllPlayers() {
       row.onmouseleave = () => { row.style.background='var(--surface)'; row.style.borderColor='var(--border)'; };
       row.onclick = () => { document.getElementById('player-search-input').value = p.name; playerSearch(); };
       const nm = document.createElement('div');
-      nm.style.cssText = 'flex:1;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-      nm.textContent = p.name;
+      nm.style.cssText = 'flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      if (p.isYou) {
+        nm.style.color = 'var(--teal)';
+      } else if (p.name === 'anon') {
+        nm.style.cssText += 'color:var(--text-muted);font-style:italic;';
+      } else {
+        nm.style.color = 'var(--text)';
+      }
+      nm.textContent = p.name + (p.isYou ? ' (you)' : '');
       const rc = document.createElement('div');
       rc.style.cssText = 'font-size:10px;color:var(--text-muted);flex-shrink:0;';
       rc.textContent = p.runs + (p.runs===1?' run':' runs');
