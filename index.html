@@ -132,7 +132,11 @@
       position: sticky;
       top: 55px;
       z-index: 9;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
     }
+    .nav-tabs::-webkit-scrollbar { display: none; }
     .nav-tab {
       font-family: 'DM Mono', monospace;
       font-size: 10px;
@@ -146,6 +150,8 @@
       cursor: pointer;
       transition: color 0.15s, border-color 0.15s;
       margin-bottom: -1px;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .nav-tab:hover { color: var(--text); }
     .nav-tab.active { color: var(--teal); border-bottom-color: var(--teal); }
@@ -613,6 +619,89 @@
       transition: border-color 0.15s;
     }
     .player-search-input:focus { border-color: var(--teal); }
+
+    /* ── Keyboard settings ── */
+    .kb-settings {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .kb-settings-title {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .kb-layout-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .kb-layout-label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .kb-layout-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      padding: 8px 12px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+    .kb-layout-select:focus { border-color: var(--teal); }
+    .kb-grid-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .kb-mode-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .kb-grid {
+      display: grid;
+      gap: 4px;
+      width: fit-content;
+    }
+    .kb-grid.cols-3 { grid-template-columns: repeat(3, 36px); }
+    .kb-grid.cols-4 { grid-template-columns: repeat(4, 36px); }
+    .kb-key {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      text-align: center;
+      padding: 5px 0;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+    .kb-key:hover { border-color: var(--teal); }
+    .kb-key.editing {
+      border-color: var(--teal);
+      background: color-mix(in srgb, var(--teal) 12%, transparent);
+      outline: none;
+    }
+    .kb-key.conflict { border-color: var(--error); }
+    .kb-reset-btn {
+      align-self: flex-start;
+      font-size: 12px;
+      padding: 6px 14px;
+    }
+
     #player-results-area {
       width: 100%;
       display: flex;
@@ -1208,9 +1297,10 @@
 </div>
 
 <nav class="nav-tabs">
-  <button class="nav-tab active" id="tab-play" onclick="switchPanel('play')">Play</button>
+  <button class="nav-tab active" id="tab-play" onclick="switchPanel('play')">Game</button>
   <button class="nav-tab" id="tab-leaderboard" onclick="switchPanel('leaderboard')">Leaderboard</button>
   <button class="nav-tab" id="tab-player" onclick="switchPanel('player')">Player</button>
+  <button class="nav-tab" id="tab-settings" onclick="switchPanel('settings')">Settings</button>
 </nav>
 
 <!-- ── Arcana Selection Screen (overlay) ── -->
@@ -1302,70 +1392,74 @@
     </div>
 
   </div>
-  <button class="arcana-start" onclick="startFromArcana()">Start</button>
+  <div style="display:flex;flex-direction:column;gap:10px;align-items:center;">
+    <button class="arcana-start" onclick="startFromArcana()">Start</button>
+  </div>
 </div>
 
-<!-- ── Play Panel ── -->
+
 <div class="panel active" id="panel-play">
 
 <main id="main-game">
   <div class="board-container" id="board-container">
     <div id="board" style="position:relative;"></div>
   </div>
-
-  <!-- Stats below board, like the reference -->
-  <div class="below-board">
-    <div class="deck-count" id="deck-info"></div>
-    <div class="below-divider"></div>
-    <div class="below-timer" id="timer">0:00</div>
-    <div class="below-score-row">
-      <span class="below-score-label">Sets</span>
-      <span class="below-score-value" id="score">0</span>
-    </div>
-    <div class="modifier-pills" id="modifier-pills"></div>
-    <div class="below-divider"></div>
-    <div style="display:flex;gap:8px;margin-top:4px;" id="below-board-btns">
-      <button class="btn btn-primary" onclick="newGame()">New Game</button>
-      <button class="btn" onclick="showArcana()">Modifiers</button>
-    </div>
-  </div>
-
-  <div class="end-screen" id="end-screen">
-    <div class="end-title">Complete!</div>
-    <div class="end-stats">
-      <div class="stat">
-        <div class="end-stat-label">Sets Found</div>
-        <div class="end-stat-value" id="final-score">0</div>
-      </div>
-      <div class="stat">
-        <div class="end-stat-label">Time</div>
-        <div class="end-stat-value" id="final-time">0:00</div>
-      </div>
-    </div>
-    <div id="end-name-prompt" style="display:none;flex-direction:column;align-items:center;gap:6px;">
-      <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);">Save score as</div>
-      <div style="display:flex;gap:8px;">
-        <input id="end-name-input" type="text" maxlength="24" placeholder="your name"
-          style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:8px 12px;outline:none;transition:border-color 0.15s;width:160px;"
-          onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor=''"
-          onkeydown="if(event.key==='Enter')saveEndName()" />
-        <button class="btn btn-primary" onclick="saveEndName()">Save</button>
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-primary" onclick="newGame()">Play Again</button>
-      <button class="btn" onclick="showArcana()">Modifiers</button>
-    </div>
-  </div>
-  <div class="history-panel" id="history-panel" style="display:none;">
-    <div class="history-label">History</div>
-    <div class="history-list" id="history-list"></div>
-  </div>
 </main>
+
+<!-- Everything below stays in panel-play permanently -->
+<div class="below-board">
+  <div class="deck-count" id="deck-info"></div>
+  <div class="below-divider"></div>
+  <div class="below-timer" id="timer">0:00</div>
+  <div class="below-score-row">
+    <span class="below-score-label">Sets</span>
+    <span class="below-score-value" id="score">0</span>
+  </div>
+  <div class="modifier-pills" id="modifier-pills"></div>
+  <div class="below-divider"></div>
+  <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;justify-content:center;" id="below-board-btns">
+    <button class="btn btn-primary" onclick="newGame()">New Game</button>
+    <button class="btn" onclick="showArcana()">Modifiers</button>
+    <button class="btn" id="btn-layout" onclick="toggleLayout()" title="Toggle layout (Shift+B)">Portrait</button>
+  </div>
+
+</div>
+
+<div class="end-screen" id="end-screen">
+  <div class="end-title">Complete!</div>
+  <div class="end-stats">
+    <div class="stat">
+      <div class="end-stat-label">Sets Found</div>
+      <div class="end-stat-value" id="final-score">0</div>
+    </div>
+    <div class="stat">
+      <div class="end-stat-label">Time</div>
+      <div class="end-stat-value" id="final-time">0:00</div>
+    </div>
+  </div>
+  <div id="end-name-prompt" style="display:none;flex-direction:column;align-items:center;gap:6px;">
+    <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);">Save score as</div>
+    <div style="display:flex;gap:8px;">
+      <input id="end-name-input" type="text" maxlength="24" placeholder="your name"
+        style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:8px 12px;outline:none;transition:border-color 0.15s;width:160px;"
+        onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor=''"
+        onkeydown="if(event.key==='Enter')saveEndName()" />
+      <button class="btn btn-primary" onclick="saveEndName()">Save</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-primary" onclick="newGame()">Play Again</button>
+    <button class="btn" onclick="showArcana()" id="end-modifiers-btn">Modifiers</button>
+  </div>
+</div>
+<div class="history-panel" id="history-panel" style="display:none;">
+  <div class="history-label">History</div>
+  <div class="history-list" id="history-list"></div>
+</div>
 
 </div><!-- end #panel-play -->
 
-<!-- ── Leaderboard Panel ── -->
+<!-- ── Leaderboard Panel ──  -->
 <div class="panel" id="panel-leaderboard">
   <div class="lb-panel-body">
     <div class="lb-filter-label">filter by modifiers</div>
@@ -1385,11 +1479,67 @@
   </div>
 </div>
 
+<!-- ── Settings Panel ── -->
+<div class="panel" id="panel-settings">
+  <div class="player-panel-body">
+    <div class="kb-settings">
+      <div class="kb-settings-title">Keyboard Shortcuts</div>
+
+      <div class="kb-layout-row">
+        <div class="kb-layout-label">Preset layout</div>
+        <select class="kb-layout-select" id="kb-preset-select" onchange="applyKbPreset(this.value)">
+          <option value="QWERTY">QWERTY</option>
+          <option value="AZERTY">AZERTY</option>
+          <option value="QWERTZ">QWERTZ</option>
+          <option value="Dvorak">Dvorak</option>
+          <option value="Colemak">Colemak</option>
+          <option value="Workman">Workman</option>
+          <option value="Neo">Neo</option>
+          <option value="Custom">Custom</option>
+        </select>
+      </div>
+
+      <div class="kb-grid-wrap">
+        <div class="kb-mode-label">3-col layout (portrait)</div>
+        <div class="kb-grid cols-3" id="kb-grid-3"></div>
+      </div>
+
+      <div class="kb-grid-wrap">
+        <div class="kb-mode-label">4-col layout (landscape)</div>
+        <div class="kb-grid cols-4" id="kb-grid-4"></div>
+      </div>
+
+      <button class="btn kb-reset-btn" onclick="resetKbLayout()">Reset to default</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Panel toggle ──────────────────────────────────────────────────────────────
 
 // Color animation state (hue arcana modifier)
 let animOn    = false;
+
+function rebuildGamePills() {
+  const pillsEl = document.getElementById('modifier-pills');
+  if (!pillsEl) return;
+  pillsEl.innerHTML = '';
+  const PILL_ART = {
+    fill:  `<svg width="22" height="22" viewBox="-60 -60 120 120"><g fill="#3a3630"><g transform="rotate(0)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(45)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(90)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(135)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(180)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(225)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(270)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(315)"><polygon points="-6,-30 0,-56 6,-30"/></g></g><circle r="26" fill="#3a3630"/></svg>`,
+    morph: `<svg width="22" height="22" viewBox="0 0 74 74"><defs><mask id="pillmm"><rect width="74" height="74" fill="white"/><circle cx="46" cy="28" r="22" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#pillmm)"/></svg>`,
+    clone: `<svg width="22" height="22" viewBox="-54 -54 108 108"><polygon points="0,-50 5.7,-13.9 19.8,-19.8 13.9,-5.7 50,0 13.9,5.7 19.8,19.8 5.7,13.9 0,50 -5.7,13.9 -19.8,19.8 -13.9,5.7 -50,0 -13.9,-5.7 -19.8,-19.8 -5.7,-13.9" fill="#3a3630"/><path fill="#f5f0e8" d="M-13,0 A22,22 0 0,0 13,0 A22,22 0 0,0 -13,0 Z"/><circle cx="0" cy="0" r="4" fill="#3a3630"/></svg>`,
+    hue:   `<svg width="22" height="22" viewBox="0 0 74 74"><defs><mask id="pillhue"><rect width="74" height="74" fill="white"/><circle cx="50" cy="24" r="24" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#pillhue)"/></svg>`,
+    fade:  `<svg width="22" height="23" viewBox="-15 -10 326 328"><g transform="rotate(-0.5,148,154)"><path fill="#3a3630" fill-rule="evenodd" d="M133.5 300.32C115.17 296.22 99.38 286.65 81.93 269.08 54.82 241.79 36.01 201.94 27.95 154.7 22 119.89 21.57 84.52 26.63 47c1.76-13.08 3.26-16.37 8.75-19.18 4.68-2.4 7.22-2.06 19.44 2.66 19.12 7.39 45.27 14.1 64.07 16.45 41.51 5.19 78.07.07 127.34-17.85 7.34-2.67 10.67-2.62 14.87.21 4.58 3.08 5.68 5.74 7.36 17.87 6.46 46.67 3.1 97.31-9.21 138.84-17.14 57.86-54.82 102.83-94.66 112.98-7.48 1.91-25.15 2.67-31.09 1.34zm31.78-56.23c10.29-3.56 18-8.32 25.22-15.61 7.73-7.78 12.67-16.09 15.54-26.13 2.19-7.65 3.33-7.49-11.04-1.56-17.17 7.1-25.75 8.66-47.5 8.67-16.4 0-20.23-.31-28-2.25-9.97-2.5-20.46-6.24-27.85-9.93-2.67-1.33-5.04-2.22-5.28-1.98-1.02 1.01 5.73 18.28 9.18 23.49 8.78 13.26 23.21 23.29 38.45 26.72 8.6 1.94 23.53 1.26 31.28-1.42z"/></g></svg>`,
+  };
+  Object.entries(PILL_ART).forEach(([key, art]) => {
+    if (!arcanaSelected[key]) return;
+    const card = document.createElement('div');
+    card.className = 'modifier-mini-card';
+    card.innerHTML = art;
+    pillsEl.appendChild(card);
+  });
+}
+
 let animHue   = 0;
 let animSpeed = 120;
 let animFrame = null;
@@ -1531,24 +1681,14 @@ function findSetOnBoard(board) {
 let deck = [], board = [], selected = [];
 let score = 0, startTime = null, timerInterval = null;
 let hintCards = [], gameOver = false;
-let gameHistory = []; // [{time, cards:[a,b,c]}]
-let initialDeck = []; // saved at game start for replay
+let gameHistory = [];
+let initialDeck = [];
 
 function newGame() {
-  // Cancel any running spring animation
+  // Cancel spring animation
   if (rafId) { cancelAnimationFrame(rafId); rafId = null; lastTs = null; }
-  // Reset morph engine (sprites are about to be wiped, live paths go with them)
-  if (morphRaf) { cancelAnimationFrame(morphRaf); morphRaf = null; }
-  morphPhase = 'hold'; morphPhaseStart = null; morphShapeIdx = 0;
-  // Reset clone engine
-  if (cloneRaf) { cancelAnimationFrame(cloneRaf); cloneRaf = null; }
-  clonePhaseStart = null;
-  // Reset fill engine
-  if (fillRaf) { cancelAnimationFrame(fillRaf); fillRaf = null; }
-  fillPhaseStart = null;
-  // Stop fade engine (restarted below if fadeOn)
-  if (fadeRaf) { cancelAnimationFrame(fadeRaf); fadeRaf = null; }
-  fadeStart = null;
+  // Stop all mod engines cleanly (resets paths, transforms, etc.)
+  stopMorph(); stopClone(); stopFill(); stopFade(); stopAnim();
   // Wipe all sprites
   sprites.clear();
   document.getElementById('board').innerHTML = '';
@@ -1619,31 +1759,50 @@ class Spring {
 
 // ─── Board layout ─────────────────────────────────────────────────────────────
 
-const GAP = 8;
+// null = auto (≥640px → 4 cols, <640px → 3 cols)
+// 3 = force 3-col portrait,  4 = force 4-col landscape
+let layoutOverride = null;
 
 function getLayout() {
   const container = document.getElementById('board-container');
   const W = container.clientWidth || 860;
-  const cols = W < 560 ? 3 : 4;
-  const cardW = Math.floor((W - GAP * (cols + 1)) / cols);
+  const cols = layoutOverride !== null ? layoutOverride : (W >= 640 ? 4 : 3);
+  // Gap is ~6% of card width — keeps spacing ratio consistent across col counts
+  // Solve: cardW = (W - gap*(cols+1)) / cols  where gap = 0.06*cardW
+  // → cardW * (cols + 0.06*(cols+1)) = W
+  const cardW = Math.floor(W / (cols + 0.06 * (cols + 1)));
+  const gap = Math.round(cardW * 0.06);
   const cardH = Math.round(cardW / 1.6);
-  return { W, cols, cardW, cardH };
+  return { W, cols, cardW, cardH, gap };
+}
+
+function toggleLayout() {
+  const current = getLayout().cols;
+  layoutOverride = current === 4 ? 3 : 4;
+  document.getElementById('btn-layout').textContent =
+    layoutOverride === 3 ? 'Landscape' : 'Portrait';
+  renderBoard();
+}
+
+function updateLayoutBtn() {
+  const cols = getLayout().cols;
+  document.getElementById('btn-layout').textContent = cols === 3 ? 'Landscape' : 'Portrait';
 }
 
 function cardTarget(index, layout) {
-  const { W, cols, cardW, cardH } = layout;
+  const { cols, cardW, cardH, gap } = layout;
   const col = index % cols;
   const row = Math.floor(index / cols);
   return {
-    x: GAP + col * (cardW + GAP),
-    y: GAP + row * (cardH + GAP),
+    x: gap + col * (cardW + gap),
+    y: gap + row * (cardH + gap),
   };
 }
 
 function boardHeight(n, layout) {
-  const { cols, cardH } = layout;
+  const { cols, cardH, gap } = layout;
   const rows = Math.ceil(n / cols);
-  return rows * cardH + (rows + 1) * GAP;
+  return rows * cardH + (rows + 1) * gap;
 }
 
 // ─── Sprite registry ──────────────────────────────────────────────────────────
@@ -1652,11 +1811,12 @@ function boardHeight(n, layout) {
 
 const sprites = new Map(); // card string → sprite object
 let   rafId   = null;
+let   _noEnterAnim = false;
 
 function getOrCreateSprite(card, entering, layout) {
   if (sprites.has(card)) return sprites.get(card);
 
-  const { W, cardW, cardH } = layout;
+  const { W, cardW, cardH, gap } = layout;
   // create DOM
   const el = document.createElement('div');
   el.className = 'card-sprite moving';
@@ -1677,7 +1837,7 @@ function getOrCreateSprite(card, entering, layout) {
   document.getElementById('board').appendChild(el);
 
   // Springs: enter from off-screen left
-  const startX = entering ? -cardW - GAP : 0;
+  const startX = entering ? -cardW - gap : 0;
   const startY = entering ? 0 : 0;
 
   const sprite = {
@@ -1800,7 +1960,7 @@ function cardSVG(card, size) {
 
 function renderBoard() {
   const layout = getLayout();
-  const { W, cardW, cardH } = layout;
+  const { W, cardW, cardH, gap } = layout;
   const h = boardHeight(board.length, layout);
 
   // Size the container
@@ -1828,14 +1988,36 @@ function renderBoard() {
     const isNew = !sprites.has(card);
     const sprite = getOrCreateSprite(card, isNew, layout);
 
+    // Always sync sprite dimensions to the current layout (fixes landscape resize)
+    if (!isNew) {
+      sprite.el.style.width  = cardW + 'px';
+      sprite.el.style.height = cardH + 'px';
+      // Rescale the SVG symbols inside the card
+      const svgEls = sprite.inner.querySelectorAll('.card-symbols > svg');
+      const newSymSize = cardH * 0.54;
+      const newW = newSymSize * 0.5;
+      const newH = newSymSize;
+      svgEls.forEach(svg => {
+        svg.setAttribute('width',  newW);
+        svg.setAttribute('height', newH);
+      });
+    }
+
     if (isNew) {
-      // Enter from off-screen left, vertically centred
-      sprite.sx.pos = -cardW - GAP;
-      sprite.sx.to  = x;
-      sprite.sy.pos = h / 2 - cardH / 2;
-      sprite.sy.to  = y;
-      sprite.so.pos = 0;
-      sprite.so.to  = 1;
+      if (_noEnterAnim) {
+        // Restore: snap directly to target, no fly-in
+        sprite.sx.pos = x; sprite.sx.to = x;
+        sprite.sy.pos = y; sprite.sy.to = y;
+        sprite.so.pos = 1; sprite.so.to = 1;
+      } else {
+        // Enter from off-screen left, vertically centred
+        sprite.sx.pos = -cardW - gap;
+        sprite.sx.to  = x;
+        sprite.sy.pos = h / 2 - cardH / 2;
+        sprite.sy.to  = y;
+        sprite.so.pos = 0;
+        sprite.so.to  = 1;
+      }
       sprite.leaving = false;
       sprite.el.className = 'card-sprite moving';
     } else {
@@ -1864,9 +2046,8 @@ function renderBoard() {
 const KB_3 = '123qweasdzxcrtyfghvbnuiojklm,.';
 const KB_4 = 'qazwsxedcrfvtgbyhnujmik,ol.p;/';
 
-function getKbLayout() {
-  return getLayout().cols === 3 ? KB_3 : KB_4;
-}
+// getKbLayout is defined later in the keyboard customisation section
+// to support user-remapped keys; it falls back to KB_3 / KB_4.
 
 function updateKeyLabels() {
   const layout = getKbLayout();
@@ -1988,7 +2169,6 @@ function endGame() {
     document.getElementById('final-score').textContent = score;
     document.getElementById('final-time').textContent  = formatTime();
     document.getElementById('end-screen').classList.add('show');
-    // Record to leaderboard
     const activeMods = [fillOn && 'fill', morphOn && 'morph', cloneOn && 'clone', animOn && 'hue', fadeOn && 'fade'].filter(Boolean);
     lbRecord(finalMs, activeMods);
   }, 600);
@@ -2078,9 +2258,33 @@ function addHistoryEntry(n, cards, elapsedMs) {
   list.appendChild(entry);
 }
 
-// Handle window resize — reflow card positions
-window.addEventListener('resize', () => {
-  if (board.length) renderBoard();
+// Handle window resize — reflow card positions and sizes
+// Use rAF so the container has settled to its new dimensions before getLayout() reads them.
+function onResize() {
+  requestAnimationFrame(() => {
+    if (board.length) renderBoard();
+    updateLayoutBtn();
+  });
+}
+window.addEventListener('resize', onResize);
+// orientationchange fires before the browser repaints at the new size,
+// so wait an extra frame after a short timeout to be safe.
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => {
+    requestAnimationFrame(() => {
+      if (board.length) renderBoard();
+      updateLayoutBtn();
+    });
+  }, 100);
+});
+
+// Re-render when tab becomes visible again — the container may have had
+// clientWidth = 0 while hidden, causing getLayout() to use stale dimensions.
+// rAF ensures the browser has repainted and clientWidth is accurate.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && board.length && !gameOver) {
+    requestAnimationFrame(() => { renderBoard(); updateLayoutBtn(); });
+  }
 });
 
 // ─── Shape Morph Engine ──────────────────────────────────────────────────────
@@ -2262,9 +2466,8 @@ function setFadeOpacity(v) {
 }
 
 let cloneOn         = false;
-let cloneHold       = 500; // ms holding at natural spread positions
+let cloneHold       = 500; // ms holding at spread positions
 let cloneTrans      = 500;  // ms for collapse / expand transition
-let cloneHoldC      = 333;  // ms holding at center (all overlapping)
 let cloneRaf        = null;
 let clonePhaseStart = null;
 
@@ -2417,7 +2620,6 @@ function onCloneSpeedChange() {
   const val  = parseInt(document.getElementById('sl-clone-speed').value);
   cloneHold  = val;
   cloneTrans = Math.round(val * 0.75);
-  cloneHoldC = Math.round(val * 0.5);
   document.getElementById('vl-clone-speed').textContent = (1200 / val).toFixed(1) + '×';
 }
 
@@ -2538,14 +2740,30 @@ function onFillSpeedChange() {
 // Pulses the opacity of all symbol SVGs (data-clone) between 1 and 0
 // on a 2-second sine cycle, making shapes fade into the card background.
 
-let fadeOn    = false;
-let fadeRaf   = null;
+let fadeOn             = false;
+let fadeCycleDuration  = 2000; // ms for the fade-out + fade-in transition
+let fadeWhiteoutDuration = 0;  // ms held fully invisible between fade-out and fade-in
+let fadeRaf            = null;
 let fadeStart = null;
 
 function fadeTick(ts) {
   if (fadeStart === null) fadeStart = ts;
-  const t = ((ts - fadeStart) % 2000) / 2000; // 0..1 over 2 seconds
-  const opacity = (1 + Math.cos(t * Math.PI * 2)) / 2; // 1→0→1 cosine
+  const period   = fadeCycleDuration + fadeWhiteoutDuration;
+  const t        = (ts - fadeStart) % period;
+  const halfTrans = fadeCycleDuration / 2;
+
+  let opacity;
+  if (t < halfTrans) {
+    // Fade out: 1 → 0
+    opacity = (1 + Math.cos((t / halfTrans) * Math.PI)) / 2;
+  } else if (t < halfTrans + fadeWhiteoutDuration) {
+    // Hold fully invisible
+    opacity = 0;
+  } else {
+    // Fade in: 0 → 1
+    const p = (t - halfTrans - fadeWhiteoutDuration) / halfTrans;
+    opacity = (1 - Math.cos(p * Math.PI)) / 2;
+  }
   setFadeOpacity(opacity);
   fadeRaf = requestAnimationFrame(fadeTick);
 }
@@ -2943,10 +3161,11 @@ function renderReplayBoard(boardArr, highlightCards) {
 
   const W = Math.min(container.clientWidth || 660, 720);
   const cols = W < 480 ? 3 : 4;
-  const cardW = Math.floor((W - GAP * (cols + 1)) / cols);
+  const cardW = Math.floor(W / (cols + 0.06 * (cols + 1)));
+  const gap   = Math.round(cardW * 0.06);
   const cardH = Math.round(cardW / 1.6);
   const rows  = Math.ceil(boardArr.length / cols);
-  const h     = rows * cardH + (rows + 1) * GAP;
+  const h     = rows * cardH + (rows + 1) * gap;
 
   container.style.height = h + 'px';
   boardEl.style.height   = h + 'px';
@@ -2954,8 +3173,8 @@ function renderReplayBoard(boardArr, highlightCards) {
   boardArr.forEach((card, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const x   = GAP + col * (cardW + GAP);
-    const y   = GAP + row * (cardH + GAP);
+    const x   = gap + col * (cardW + gap);
+    const y   = gap + row * (cardH + gap);
 
     const sprite = document.createElement('div');
     sprite.style.cssText = `position:absolute;width:${cardW}px;height:${cardH}px;transform:translate(${x}px,${y}px);`;
@@ -3148,46 +3367,40 @@ document.addEventListener('DOMContentLoaded', () => {
 // ─── Arcana Selection Screen ──────────────────────────────────────────────────
 
 const arcanaSelected = { fill: false, morph: false, clone: false, hue: false, fade: false };
-let _arcanaWasOpen = false;
-
 function switchPanel(panel) {
   document.getElementById('tab-play').classList.toggle('active', panel === 'play');
   document.getElementById('tab-leaderboard').classList.toggle('active', panel === 'leaderboard');
   document.getElementById('tab-player').classList.toggle('active', panel === 'player');
+  document.getElementById('tab-settings').classList.toggle('active', panel === 'settings');
   document.getElementById('panel-play').classList.toggle('active', panel === 'play');
   document.getElementById('panel-leaderboard').classList.toggle('active', panel === 'leaderboard');
   document.getElementById('panel-player').classList.toggle('active', panel === 'player');
+  document.getElementById('panel-settings').classList.toggle('active', panel === 'settings');
+
+  // Hide arcana screen when switching panels
+  document.getElementById('arcana-screen').classList.add('hidden');
   if (panel === 'leaderboard') {
     buildLbFilterCards();
     renderLeaderboard();
-    _arcanaWasOpen = !document.getElementById('arcana-screen').classList.contains('hidden');
-    document.getElementById('arcana-screen').classList.add('hidden');
   }
   if (panel === 'player') {
-    _arcanaWasOpen = !document.getElementById('arcana-screen').classList.contains('hidden');
-    document.getElementById('arcana-screen').classList.add('hidden');
     renderAllPlayers();
-  }
-  if (panel === 'play' && _arcanaWasOpen) {
-    document.getElementById('arcana-screen').classList.remove('hidden');
-    animateArcanaCards();
-    _arcanaWasOpen = false;
   }
 }
 
 function showArcana() {
-  // Reset selections
+  // Load current arcanaSelected state into the arcana cards
   Object.keys(arcanaSelected).forEach(k => {
-    arcanaSelected[k] = false;
-    document.getElementById('arc-' + k).classList.remove('selected');
+    document.getElementById('arc-' + k).classList.toggle('selected', arcanaSelected[k]);
   });
-  const overlay = document.getElementById('arcana-screen');
-  overlay.classList.remove('hidden');
+  document.getElementById('arcana-screen').classList.remove('hidden');
   animateArcanaCards();
 }
 
+
+
 function animateArcanaCards() {
-  const cards = Array.from(document.querySelectorAll('.arcana-card'));
+  const cards = Array.from(document.querySelectorAll('#arcana-screen .arcana-card'));
   const STAGGER = 55; // ms between each card
 
   // Spring constants matching the board animation
@@ -3227,11 +3440,11 @@ function toggleArcana(key) {
 }
 
 function startFromArcana() {
+  // Game-only: applies arcanaSelected and starts a new game
   const overlay = document.getElementById('arcana-screen');
-  const cards = Array.from(document.querySelectorAll('.arcana-card'));
+  const cards = Array.from(document.querySelectorAll('#arcana-screen .arcana-card'));
   const STAGGER = 40;
 
-  // Animate cards out to the right, last card first
   cards.slice().reverse().forEach((card, i) => {
     setTimeout(() => {
       card.style.transition = 'transform 0.38s cubic-bezier(0.4, 0, 1, 1), opacity 0.25s ease';
@@ -3240,49 +3453,20 @@ function startFromArcana() {
     }, i * STAGGER);
   });
 
-  // After all cards are gone, fade the overlay, reset positions, then start the game
   const totalDelay = cards.length * STAGGER + 280;
   setTimeout(() => {
     overlay.classList.add('hidden');
-    // Reset cards off-screen left, ready for next open
     cards.forEach(card => {
       card.style.transition = 'none';
       card.style.transform = 'translateX(-320px)';
       card.style.opacity = '0';
     });
 
-    // Apply selected effects (defaults, no sliders needed)
-    morphOn  = arcanaSelected.morph;
-    cloneOn  = arcanaSelected.clone;
-    fillOn   = arcanaSelected.fill;
-    animOn   = arcanaSelected.hue;
-    fadeOn   = arcanaSelected.fade;
+    morphOn = arcanaSelected.morph; cloneOn = arcanaSelected.clone;
+    fillOn  = arcanaSelected.fill;  animOn  = arcanaSelected.hue;
+    fadeOn  = arcanaSelected.fade;
 
-    // Explicitly stop any engines that are now off so they reset their state
-    // (e.g. morphCurrentPaths) before new cards are created via cardSVG.
-    if (!morphOn) stopMorph();
-    if (!cloneOn) stopClone();
-    if (!fillOn)  stopFill();
-    if (!fadeOn)  stopFade();
-
-    // Build modifier mini tarot cards in the status bar
-    const pillsEl = document.getElementById('modifier-pills');
-    pillsEl.innerHTML = '';
-  const ARCANA_ART = {
-    fill: `<svg width="22" height="22" viewBox="-60 -60 120 120"><g fill="#3a3630"><g transform="rotate(0)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(45)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(90)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(135)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(180)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(225)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(270)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(315)"><polygon points="-6,-30 0,-56 6,-30"/></g></g><circle r="26" fill="#3a3630"/></svg>`,
-    morph: `<svg width="22" height="22" viewBox="0 0 74 74"><defs><mask id="mmm"><rect width="74" height="74" fill="white"/><circle cx="46" cy="28" r="22" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#mmm)"/></svg>`,
-    clone: `<svg width="22" height="22" viewBox="-54 -54 108 108"><polygon points="0,-50 5.7,-13.9 19.8,-19.8 13.9,-5.7 50,0 13.9,5.7 19.8,19.8 5.7,13.9 0,50 -5.7,13.9 -19.8,19.8 -13.9,5.7 -50,0 -13.9,-5.7 -19.8,-19.8 -5.7,-13.9" fill="#3a3630"/><path fill="#f5f0e8" d="M-13,0 A22,22 0 0,0 13,0 A22,22 0 0,0 -13,0 Z"/><circle cx="0" cy="0" r="4" fill="#3a3630"/></svg>`,
-    hue:  `<svg width="22" height="22" viewBox="240 200 520 540" xmlns="http://www.w3.org/2000/svg"><g><path d="M0 0 C0.99 0.22042969 0.99 0.22042969 2 0.4453125 C14.5226572 3.44905798 25.44714632 11.7751019 35.6875 19.25 C42.78944302 24.41994062 49.7063911 27.98805384 58 31 C58.75667969 31.2784375 59.51335937 31.556875 60.29296875 31.84375 C60.93878906 32.0809375 61.58460938 32.318125 62.25 32.5625 C71.42087136 35.94020851 80.75853473 40.09312975 85.4375 49.125 C88.25351555 56.37837339 88.02342049 63.96240589 85.4375 71.25 C81.36919126 80.15745492 73.94017094 87.46613398 64.94140625 91.3046875 C61.32087879 92.62796768 57.67416703 93.83713546 54 95 C52.72385324 95.41504159 51.44781215 95.83040822 50.171875 96.24609375 C36.59832164 100.6173535 22.85200434 104.37164253 9 107.75 C8.15219971 107.96076172 7.30439941 108.17152344 6.4309082 108.38867188 C-16.44353767 113.853633 -41.37369982 113.49479535 -62.08203125 101.81640625 C-64.70240941 100.18524716 -67.10732467 98.42702274 -69.5625 96.5625 C-74.87953753 92.96624916 -79.78782893 93.02628181 -86 94 C-108.61610404 99.47032119 -130.01431658 115.59842888 -146 132 C-146.67160156 132.68578125 -147.34320313 133.3715625 -148.03515625 134.078125 C-161.02939533 147.99873565 -171.58754944 164.48905407 -179 182 C-179.35964844 182.83273437 -179.71929687 183.66546875 -180.08984375 184.5234375 C-183.90146435 193.64255999 -186.06505058 203.0505435 -188.125 212.6875 C-188.29580078 213.48341553 -188.46660156 214.27933105 -188.64257812 215.09936523 C-195.10395814 246.07087053 -190.97614633 282.47560584 -177 311 C-176.53335938 311.95390625 -176.06671875 312.9078125 -175.5859375 313.890625 C-175.18632812 314.66921875 -174.78671875 315.4478125 -174.375 316.25 C-173.18168695 318.57582034 -172.06575809 320.81830822 -171.17578125 323.27734375 C-169.47050896 327.22609719 -167.1569458 330.7152459 -164.8125 334.3125 C-164.31782227 335.07361084 -163.82314453 335.83472168 -163.31347656 336.61889648 C-159.89834876 341.80118027 -156.28502152 346.50492841 -152 351 C-150.91323131 352.2678968 -149.83004066 353.53886715 -148.75 354.8125 C-134.49562272 371.04399449 -118.09328913 383.0861768 -99 393 C-98.01 393.53367187 -98.01 393.53367187 -97 394.078125 C-78.01229312 404.04667111 -55.31429149 409.88314243 -33.890625 410.30859375 C-33.13378418 410.32376541 -32.37694336 410.33893707 -31.59716797 410.35456848 C-8.59223088 410.72934923 12.51189834 409.03344349 34 400 C35.45129891 399.4457157 36.90439432 398.89610896 38.359375 398.3515625 C55.80477872 391.59640221 72.10589378 381.55813447 86 369 C87.485 367.69289063 87.485 367.69289063 89 366.359375 C97.25058999 359.02179184 105.06248796 351.36299975 111 342 C111.48315674 341.51950195 111.96631348 341.03900391 112.46411133 340.54394531 C130.67173995 322.24080696 139.35304762 291.41570225 144 267 C144.13277344 266.31969727 144.26554687 265.63939453 144.40234375 264.93847656 C146.17086586 255.43515409 146.19371216 245.88611519 146.25 236.25 C146.25942627 235.02982178 146.26885254 233.80964355 146.27856445 232.55249023 C146.25079166 224.82693827 145.49219956 217.57261381 144 210 C143.70127007 208.32692153 143.40306668 206.65374894 143.10546875 204.98046875 C140.24761796 189.79405488 135.94062867 175.88125734 129 162 C128.66983887 161.33709961 128.33967773 160.67419922 127.99951172 159.99121094 C119.20074956 142.45817594 104.30885994 114.15442997 86 105 C86 104.01 86 103.02 86 102 C87.5390625 100.4921875 87.5390625 100.4921875 89.625 98.875 C95.78353409 93.71927146 99.66261942 87.23099126 103 80 C107.30184146 80.49636632 109.90470655 83.23583097 113 86 C113.57492187 86.495 114.14984375 86.99 114.7421875 87.5 C116.84494186 89.31482534 118.92224434 91.15660398 121 93 C121.91007812 93.79277344 122.82015625 94.58554687 123.7578125 95.40234375 C131.60171185 102.32534152 138.46559447 109.83583685 145 118 C145.4626123 118.5770166 145.92522461 119.1540332 146.40185547 119.74853516 C179.93447299 162.16128497 195.23839357 218.65343106 189.02246094 272.18310547 C184.54741333 306.7135404 173.47005952 338.99652377 154 368 C153.56945312 368.64388672 153.13890625 369.28777344 152.6953125 369.95117188 C147.36295194 377.84468137 141.50310354 385.03151429 135 392 C133.87017688 393.30835048 132.74495294 394.62069073 131.625 395.9375 C125.70026666 402.73433194 119.2938552 409.6727474 112 415 C111.34 415 110.68 415 110 415 C110 415.66 110 416.32 110 417 C107.7462179 419.09690728 105.17949968 420.82178995 102.6875 422.625 C101.99720703 423.140625 101.30691406 423.65625 100.59570312 424.1875 C99.92861328 424.67476562 99.26152344 425.16203125 98.57421875 425.6640625 C97.96151123 426.11217285 97.34880371 426.5602832 96.7175293 427.02197266 C95 428 95 428 92 428 C92 428.66 92 429.32 92 430 C89.81918968 431.49968889 87.65733035 432.85767109 85.375 434.1875 C84.70001465 434.58606201 84.0250293 434.98462402 83.32958984 435.39526367 C76.70623771 439.25798535 69.92502026 442.71061538 63 446 C62.236875 446.36609375 61.47375 446.7321875 60.6875 447.109375 C36.67470542 458.20619674 9.62066206 466.18780596 -16.9296875 466.1328125 C-17.96006134 466.13376923 -18.99043518 466.13472595 -20.05203247 466.13571167 C-22.22202618 466.13638923 -24.39202196 466.13456462 -26.56201172 466.13037109 C-29.85779446 466.12502789 -33.15344026 466.13032491 -36.44921875 466.13671875 C-38.56770863 466.13605768 -40.68619843 466.13477592 -42.8046875 466.1328125 C-44.26453568 466.13584885 -44.26453568 466.13584885 -45.75387573 466.13894653 C-59.23858882 466.09345734 -71.72443945 463.76204695 -84.6875 460.1875 C-85.64503174 459.92396729 -86.60256348 459.66043457 -87.58911133 459.38891602 C-99.44052694 456.08785494 -110.92374542 452.42721686 -122 447 C-122.58861816 446.71785645 -123.17723633 446.43571289 -123.78369141 446.14501953 C-155.87373518 430.75581093 -185.31683521 408.45132027 -207 380 C-207.46043701 379.39808838 -207.92087402 378.79617676 -208.39526367 378.17602539 C-223.26703327 358.57611283 -234.51631267 337.05809167 -243 314 C-243.63035156 312.30423828 -243.63035156 312.30423828 -244.2734375 310.57421875 C-250.51602106 292.85560753 -254.04780408 272.24352576 -254.23828125 253.41796875 C-254.24798447 252.61418289 -254.25768768 251.81039703 -254.26768494 250.98225403 C-254.29256096 248.38395134 -254.30521251 245.78590987 -254.3125 243.1875 C-254.31511841 242.29861084 -254.31773682 241.40972168 -254.32043457 240.49389648 C-254.32530714 225.01445358 -253.14596744 210.19629439 -250 195 C-249.83983398 194.21351074 -249.67966797 193.42702148 -249.51464844 192.61669922 C-243.42434723 163.71039698 -230.59717601 137.25741109 -214 113 C-213.59410645 112.40558105 -213.18821289 111.81116211 -212.77001953 111.19873047 C-208.17000391 104.51807471 -208.17000391 104.51807471 -206 102 C-205.34 102 -204.68 102 -204 102 C-203.74347656 101.42636719 -203.48695313 100.85273438 -203.22265625 100.26171875 C-189.22763762 74.3731699 -151.85818074 48.61835053 -125 38 C-123.71748471 37.27015625 -122.44670134 36.51936945 -121.1875 35.75 C-115.0597124 32.27622074 -108.45220073 30.06427227 -101.85058594 27.67138672 C-91.42651195 23.88956568 -82.03460408 18.98017149 -72.69140625 13.015625 C-70.55263085 11.73137188 -68.3223203 10.90627134 -66 10 C-64.74722616 9.25464257 -63.49767859 8.50385551 -62.25 7.75 C-55.26720869 3.80167673 -47.60515092 1.45167355 -40 -1 C-39.18660156 -1.27199219 -38.37320313 -1.54398437 -37.53515625 -1.82421875 C-26.0406952 -5.03356332 -11.07238249 -3.9078997 0 0 Z" fill="#3a3630" transform="translate(522,258)"/><path d="M0 0 C3.43812276 1.39398247 5.79069253 3.00292338 8 6 C9.09629136 9.58469875 9.09802802 12.41543234 8 16 C5.52060264 19.16776475 2.57381692 21.21309154 -1 23 C-5.70777 23.39231417 -8.07079697 23.47336758 -12.3125 21.3125 C-15.14126219 18.87844881 -16.68136405 17.49050691 -18 14 C-18.18723846 10.8339679 -17.94666509 8.03272948 -17 5 C-11.9356163 -0.19423969 -7.024677 -1.03123892 0 0 Z" fill="#f5f0e8" transform="translate(529,288)"/></g></svg>`,
-    fade: `<svg width="22" height="23" viewBox="-15 -10 326 328" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-0.5, 148, 154)"><path fill="#3a3630" fill-rule="evenodd" d="M 133.50 300.32 C115.17,296.22 99.38,286.65 81.93,269.08 C54.82,241.79 36.01,201.94 27.95,154.70 C22.00,119.89 21.57,84.52 26.63,47.00 C28.39,33.92 29.89,30.63 35.38,27.82 C40.06,25.42 42.60,25.76 54.82,30.48 C73.94,37.87 100.09,44.58 118.89,46.93 C160.40,52.12 196.96,47.00 246.23,29.08 C253.57,26.41 256.90,26.46 261.10,29.29 C265.68,32.37 266.78,35.03 268.46,47.16 C274.92,93.83 271.56,144.47 259.25,186.00 C242.11,243.86 204.43,288.83 164.59,298.98 C157.11,300.89 139.44,301.65 133.50,300.32 Z M 165.28 244.09 C175.57,240.53 183.25,235.77 190.50,228.48 C198.23,220.70 203.17,212.39 206.04,202.35 C208.23,194.70 209.37,194.86 195.00,200.79 C177.83,207.89 169.25,209.45 147.50,209.46 C131.10,209.46 127.27,209.15 119.50,207.21 C109.53,204.71 99.04,200.97 91.65,197.28 C88.98,195.95 86.61,195.06 86.37,195.30 C85.35,196.31 92.10,213.58 95.55,218.79 C104.33,232.05 118.76,242.08 134.00,245.51 C142.60,247.45 157.53,246.77 165.28,244.09 Z M 190.62 128.41 C203.82,125.30 221.95,127.60 235.42,134.10 C237.58,135.14 239.49,135.85 239.65,135.68 C239.82,135.51 238.96,132.73 237.73,129.51 C231.72,113.71 211.83,101.73 196.94,104.92 C183.31,107.84 172.39,118.25 170.10,130.50 C169.64,132.94 169.46,135.12 169.68,135.35 C169.91,135.58 173.17,134.47 176.92,132.90 C180.68,131.32 186.84,129.30 190.62,128.41 Z M 59.97 133.02 C64.98,130.46 76.83,127.32 84.59,126.49 C92.29,125.67 107.13,128.13 115.42,131.61 C125.69,135.91 125.33,135.93 124.50,131.00 C122.81,120.97 116.59,112.90 106.54,107.67 C101.16,104.87 99.57,104.53 91.98,104.52 C84.39,104.50 82.74,104.85 76.93,107.71 C66.53,112.83 58.56,122.14 55.51,132.75 C54.72,135.50 55.06,135.52 59.97,133.02 Z"/></g></svg>`,
-  };
-    Object.entries(ARCANA_ART).forEach(([key, art]) => {
-      if (!arcanaSelected[key]) return;
-      const card = document.createElement('div');
-      card.className = 'modifier-mini-card';
-      card.innerHTML = art;
-      pillsEl.appendChild(card);
-    });
-
+    rebuildGamePills();
     newGame();
   }, totalDelay);
 }
@@ -3832,7 +4016,161 @@ function handleSignOut() {
   closeProfileModal();
 }
 
-// ── Keyboard shortcuts handler ────────────────────────────────────────────────
+// ─── Keyboard layout customisation ───────────────────────────────────────────
+
+const KB_PRESETS = {
+  QWERTY:  { v: '123qweasdzxcrtyfghvbnuiojklm,.', h: 'qazwsxedcrfvtgbyhnujmik,ol.p;/' },
+  AZERTY:  { v: '&é"azeqsdwxcrtyfghvbnuiojkl,;:', h: 'aqwzsxedcrfvtgbyhnuj,ik;ol:pm!' },
+  QWERTZ:  { v: '123qweasdyxcrtzfghvbnuiojklm,.', h: 'qaywsxedcrfvtgbzhnujmik,ol.pö-' },
+  Dvorak:  { v: "123',.aoe;qjpyfuidkxbgcrhtnmwv", h: "'a;,oq.ejpukyixfdbghmctwrnvlsz" },
+  Colemak: { v: '123qwfarszxcpgjtdhvbkluyneim,.', h: 'qazwrxfscptvgdbjhklnmue,yi.;o/' },
+  Workman: { v: '123qdrashzxmwbjtgycvkfupneol,.', h: 'qazdsxrhmwtcbgvjykfnlue,po.;i/' },
+  Neo:     { v: '123xvluiaüöäcwkeospzbhgfnrtm,.', h: 'xuüviölaäcepwozksbhnmgr,ft.qdj' },
+};
+
+// Current custom layouts (persisted in localStorage)
+function loadKbLayouts() {
+  try {
+    const saved = localStorage.getItem('swn_kb_layouts');
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return { preset: 'QWERTY', v: KB_PRESETS.QWERTY.v, h: KB_PRESETS.QWERTY.h };
+}
+function saveKbLayouts(obj) {
+  try { localStorage.setItem('swn_kb_layouts', JSON.stringify(obj)); } catch {}
+}
+
+let kbLayouts = loadKbLayouts();
+
+// Keep KB_3 / KB_4 in sync with customised layouts
+function syncKbStrings() {
+  // Overwrite the module-level constants by reassigning via the getter
+  window._kbCustomV = kbLayouts.v;
+  window._kbCustomH = kbLayouts.h;
+}
+syncKbStrings();
+
+// Patch getKbLayout to use custom strings
+function getKbLayout() {
+  return getLayout().cols === 3
+    ? (window._kbCustomV || KB_3)
+    : (window._kbCustomH || KB_4);
+}
+
+let kbEditingCell = null; // { el, gridId, index }
+
+function renderKbGrid(gridId, str, cols) {
+  const grid = document.getElementById(gridId);
+  if (!grid) return;
+  grid.innerHTML = '';
+  const maxCells = cols === 3 ? 30 : 32; // enough for a full board
+  for (let i = 0; i < maxCells; i++) {
+    const el = document.createElement('div');
+    el.className = 'kb-key';
+    el.textContent = str[i] || '';
+    el.title = `Position ${i + 1} — click to remap`;
+    el.addEventListener('click', () => startKbEdit(el, gridId, i));
+    grid.appendChild(el);
+  }
+  markConflicts(gridId, str);
+}
+
+function markConflicts(gridId, str) {
+  const grid = document.getElementById(gridId);
+  if (!grid) return;
+  const seen = {};
+  str.split('').forEach((ch, i) => {
+    if (!ch) return;
+    if (seen[ch] === undefined) seen[ch] = i;
+    else seen[ch] = -1; // duplicate
+  });
+  grid.querySelectorAll('.kb-key').forEach((el, i) => {
+    const ch = str[i] || '';
+    el.classList.toggle('conflict', ch && seen[ch] === -1);
+  });
+}
+
+function startKbEdit(el, gridId, index) {
+  // Cancel any existing edit
+  if (kbEditingCell) {
+    kbEditingCell.el.classList.remove('editing');
+    kbEditingCell = null;
+  }
+  el.classList.add('editing');
+  kbEditingCell = { el, gridId, index };
+}
+
+document.addEventListener('keydown', e => {
+  if (!kbEditingCell) return;
+  if (document.activeElement.tagName === 'INPUT') return;
+
+  const { el, gridId, index } = kbEditingCell;
+
+  if (e.key === 'Escape') {
+    el.classList.remove('editing');
+    kbEditingCell = null;
+    e.preventDefault();
+    return;
+  }
+  if (e.key === 'Backspace' || e.key === 'Delete') {
+    setKbKey(gridId, index, '');
+    el.classList.remove('editing');
+    kbEditingCell = null;
+    e.preventDefault();
+    return;
+  }
+  // Accept printable single chars
+  if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    const ch = e.shiftKey ? e.key.toUpperCase() : e.key.toLowerCase();
+    setKbKey(gridId, index, ch);
+    el.classList.remove('editing');
+    kbEditingCell = null;
+    e.preventDefault();
+  }
+}, true); // capture phase so it runs before the game handler
+
+function setKbKey(gridId, index, ch) {
+  const isV = gridId === 'kb-grid-3';
+  let str = isV ? kbLayouts.v : kbLayouts.h;
+  str = str.padEnd(index + 1, ' ');
+  kbLayouts[isV ? 'v' : 'h'] =
+    str.slice(0, index) + ch + str.slice(index + 1);
+  kbLayouts.preset = 'Custom';
+  saveKbLayouts(kbLayouts);
+  syncKbStrings();
+  renderKbGrid(gridId, kbLayouts[isV ? 'v' : 'h'], isV ? 3 : 4);
+  updateKeyLabels();
+  document.getElementById('kb-preset-select').value = 'Custom';
+}
+
+function applyKbPreset(name) {
+  if (name === 'Custom') return; // user-edited; no change
+  const p = KB_PRESETS[name];
+  if (!p) return;
+  kbLayouts = { preset: name, v: p.v, h: p.h };
+  saveKbLayouts(kbLayouts);
+  syncKbStrings();
+  renderKbGrid('kb-grid-3', kbLayouts.v, 3);
+  renderKbGrid('kb-grid-4', kbLayouts.h, 4);
+  updateKeyLabels();
+}
+
+function resetKbLayout() {
+  applyKbPreset('QWERTY');
+  document.getElementById('kb-preset-select').value = 'QWERTY';
+}
+
+function initKbSettings() {
+  renderKbGrid('kb-grid-3', kbLayouts.v, 3);
+  renderKbGrid('kb-grid-4', kbLayouts.h, 4);
+  const sel = document.getElementById('kb-preset-select');
+  if (sel) sel.value = kbLayouts.preset || 'QWERTY';
+}
+
+// Init on page load
+initKbSettings();
+
+// ─── Keyboard shortcuts handler ───────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   // Always let Escape close the profile modal
   if (e.key === 'Escape') closeProfileModal();
@@ -3869,6 +4207,13 @@ document.addEventListener('keydown', e => {
 
   // Ignore key combos (Ctrl, Alt, Meta) for card selection
   if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+  // Shift+B → toggle board layout (matches setwithfriends upstream)
+  if (e.shiftKey && e.key.toLowerCase() === 'b') {
+    e.preventDefault();
+    toggleLayout();
+    return;
+  }
 
   // Letter/number/symbol keys → select card at that board position
   const key = e.shiftKey ? e.key.toUpperCase() : e.key.toLowerCase();
