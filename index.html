@@ -1706,6 +1706,8 @@ function newGame() {
   container.style.display = '';
   document.getElementById('below-board-btns').style.display = 'flex';
   document.getElementById('deck-info').style.display = '';
+  document.getElementById('timer').style.display = '';
+  document.getElementById('score').closest('.below-score-row').style.display = '';
   document.getElementById('end-screen').classList.remove('show');
   document.getElementById('score').textContent = '0';
   clearInterval(timerInterval);
@@ -2167,6 +2169,8 @@ function endGame() {
     document.getElementById('board-container').style.display = 'none';
     document.getElementById('below-board-btns').style.display = 'none';
     document.getElementById('deck-info').style.display = 'none';
+    document.getElementById('timer').style.display = 'none';
+    document.getElementById('score').closest('.below-score-row').style.display = 'none';
     document.getElementById('final-score').textContent = score;
     document.getElementById('final-time').textContent  = formatTime();
     document.getElementById('end-screen').classList.add('show');
@@ -2806,7 +2810,16 @@ function generateName() {
   return 'Anonymous ' + ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
 }
 
-// Display name: stored in localStorage, synced to Firebase scores
+// Generate a deterministic animal name from a uid so anon players
+// always get the same name across sessions without needing a DB write.
+function nameFromUid(uid) {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = ((hash << 5) - hash) + uid.charCodeAt(i);
+    hash |= 0;
+  }
+  return 'Anonymous ' + ANIMALS[Math.abs(hash) % ANIMALS.length];
+}
 function getDisplayName() {
   return localStorage.getItem('setgame_display_name') || '';
 }
@@ -2869,11 +2882,11 @@ function showToast(msg, type = '', duration = 3500) {
         if (db) {
           const myName = getDisplayName();
           db.ref('scores').orderByChild('uid').equalTo(currentUserId).once('value').then(snap => {
-            const updates = {};
             snap.forEach(child => {
-              if (!child.val().name) updates[child.key + '/name'] = myName;
+              if (!child.val().name) {
+                db.ref('scores/' + child.key + '/name').set(myName);
+              }
             });
-            if (Object.keys(updates).length) db.ref('scores').update(updates);
           });
         }
         updateHeaderNamePill();
@@ -3514,11 +3527,12 @@ function renderAllPlayers() {
     const map = new Map();
     entries.forEach(e => {
       const key = e.uid || e.name || 'unknown';
-      const displayName = (e.name || '').trim() || (e.uid === currentUserId ? getDisplayName() : null) || 'anon';
-      if (!map.has(key)) map.set(key, { name: displayName, best: Infinity, runs: 0, isYou: e.uid === currentUserId });
+      const displayName = (e.name || '').trim()
+        || (e.uid === currentUserId ? getDisplayName() : null)
+        || (e.uid ? nameFromUid(e.uid) : 'anon');
+      if (!map.has(key)) map.set(key, { name: displayName, uid: e.uid || null, best: Infinity, runs: 0, isYou: e.uid === currentUserId });
       const p = map.get(key);
-      // Update name if we now have one (scores may be in any order)
-      if (e.name && p.name === 'anon') p.name = e.name;
+      if (e.name && p.name !== e.name) p.name = e.name; // prefer real name once available
       p.runs++;
       const t = typeof e.t === 'number' ? e.t : Infinity;
       if (t < p.best) p.best = t;
@@ -3537,7 +3551,14 @@ function renderAllPlayers() {
       row.style.cssText = 'display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:background 0.15s,border-color 0.15s;';
       row.onmouseenter = () => { row.style.background='#222'; row.style.borderColor='var(--teal)'; };
       row.onmouseleave = () => { row.style.background='var(--surface)'; row.style.borderColor='var(--border)'; };
-      row.onclick = () => { document.getElementById('player-search-input').value = p.name; playerSearch(); };
+      row.onclick = () => {
+        if (p.uid) {
+          openPlayerByUid(p.uid, p.name);
+        } else {
+          document.getElementById('player-search-input').value = p.name;
+          playerSearch();
+        }
+      };
       const nm = document.createElement('div');
       nm.style.cssText = 'flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
       if (p.isYou) {
@@ -3564,6 +3585,21 @@ function renderAllPlayers() {
   } else { build(lbGetLocal()); }
 }
 
+function openPlayerByUid(uid, displayName) {
+  const area = document.getElementById('player-results-area');
+  document.getElementById('player-search-input').value = displayName;
+  area.innerHTML = '<div class="player-empty">loading…</div>';
+  const src = (firebaseReady && db)
+    ? db.ref('scores').orderByChild('uid').equalTo(uid).once('value')
+        .then(snap => { const e = []; snap.forEach(c => e.push({ ...c.val(), mods: tryParseJson(c.val().mods, []), history: tryParseJson(c.val().history, null), initialDeck: tryParseJson(c.val().initialDeck, null) })); return e; })
+    : Promise.resolve(lbGetLocal().filter(e => e.uid === uid));
+  src.then(all => {
+    playerAllEntries = all;
+    playerFilterMods = new Set();
+    renderPlayerResults(all, displayName);
+  }).catch(() => { area.innerHTML = '<div class="player-empty">error loading</div>'; });
+}
+
 function playerSearch() {
   const query = document.getElementById('player-search-input').value.trim().toLowerCase();
   const area = document.getElementById('player-results-area');
@@ -3576,8 +3612,8 @@ function playerSearch() {
         const all = [];
         snap.forEach(child => {
           const raw = child.val();
-          const name = (raw.name || '').toLowerCase();
-          if (name && name.toLowerCase().includes(query)) {
+          const name = (raw.name || (raw.uid ? nameFromUid(raw.uid) : '')).toLowerCase();
+          if (name && name.includes(query)) {
             all.push({
               ...raw,
               mods:        tryParseJson(raw.mods, []),
