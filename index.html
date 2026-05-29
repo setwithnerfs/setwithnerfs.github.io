@@ -3619,7 +3619,10 @@ function openPlayerByUid(uid, displayName) {
       .then(snap => { const e = []; snap.forEach(c => e.push({ _key: c.key, ...c.val() })); return e; });
 
     const nameLower = (displayName || '').toLowerCase();
-    const byName = nameLower
+    // Only search by name if it's a real user-set name (not a generated "Anonymous X" name,
+    // which is client-side only and never stored in Firebase)
+    const isRealName = nameLower && !nameLower.startsWith('anonymous ');
+    const byName = isRealName
       ? db.ref('scores').orderByChild('t').once('value').then(snap => {
           const e = [];
           snap.forEach(c => {
