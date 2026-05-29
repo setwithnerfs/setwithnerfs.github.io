@@ -3540,10 +3540,11 @@ function renderAllPlayers() {
       const displayName = (e.name || '').trim()
         || (isYou ? getDisplayName() : null)
         || (e.uid ? nameFromUid(e.uid) : 'anon');
-      if (!map.has(key)) map.set(key, { name: displayName, uid: e.uid || null, best: Infinity, runs: 0, isYou });
+      if (!map.has(key)) map.set(key, { name: displayName, uid: e.uid || null, best: Infinity, runs: 0, isYou, latestD: -Infinity });
       const p = map.get(key);
-      // Prefer a real name if we see one for this uid
-      if (e.name && e.name.trim()) p.name = e.name.trim();
+      // Use the name from the most recent run (highest d = timestamp)
+      const d = typeof e.d === 'number' ? e.d : -Infinity;
+      if (e.name && e.name.trim() && d > p.latestD) { p.name = e.name.trim(); p.latestD = d; }
       if (isYou) p.isYou = true;
       p.runs++;
       const t = typeof e.t === 'number' ? e.t : Infinity;
@@ -3612,57 +3613,12 @@ function renderAllPlayers() {
 }
 
 function openPlayerByUid(uid, displayName) {
-  const area = document.getElementById('player-results-area');
   document.getElementById('player-search-input').value = displayName;
-  area.innerHTML = '<div class="player-empty">loading…</div>';
-
-  if (firebaseReady && db) {
-    // Fetch by uid AND by name, then merge so runs from different sessions all appear
-    const byUid = db.ref('scores').orderByChild('uid').equalTo(uid).once('value')
-      .then(snap => { const e = []; snap.forEach(c => e.push({ _key: c.key, ...c.val() })); return e; });
-
-    const nameLower = (displayName || '').toLowerCase();
-    // Only search by name if it's a real user-set name (not a generated "Anonymous X" name,
-    // which is client-side only and never stored in Firebase)
-    const isRealName = nameLower && !nameLower.startsWith('anonymous ');
-    const byName = isRealName
-      ? db.ref('scores').orderByChild('t').once('value').then(snap => {
-          const e = [];
-          snap.forEach(c => {
-            const raw = c.val();
-            if ((raw.name || '').toLowerCase() === nameLower) e.push({ _key: c.key, ...raw });
-          });
-          return e;
-        })
-      : Promise.resolve([]);
-
-    Promise.all([byUid, byName]).then(([fromUid, fromName]) => {
-      // Merge, dedup by Firebase key
-      const seen = new Set();
-      const merged = [];
-      [...fromUid, ...fromName].forEach(raw => {
-        if (!seen.has(raw._key)) {
-          seen.add(raw._key);
-          merged.push({
-            ...raw,
-            mods:        tryParseJson(raw.mods, []),
-            history:     tryParseJson(raw.history, null),
-            initialDeck: tryParseJson(raw.initialDeck, null),
-          });
-        }
-      });
-      playerAllEntries = merged;
-      playerFilterMods = new Set();
-      renderPlayerResults(merged, displayName);
-    }).catch(() => { area.innerHTML = '<div class="player-empty">error loading</div>'; });
-  } else {
-    const all = lbGetLocal()
-      .filter(e => e.uid === uid || (displayName && (e.name || '').toLowerCase() === displayName.toLowerCase()))
-      .map(e => ({ ...e, mods: tryParseJson(e.mods, []), history: tryParseJson(e.history, null), initialDeck: tryParseJson(e.initialDeck, null) }));
-    playerAllEntries = all;
-    playerFilterMods = new Set();
-    renderPlayerResults(all, displayName);
-  }
+  const src = cachedScoreEntries || lbGetLocal();
+  const all = src.filter(e => e.uid === uid);
+  playerAllEntries = all;
+  playerFilterMods = new Set();
+  renderPlayerResults(all, displayName);
 }
 
 function playerSearch() {
