@@ -4108,11 +4108,24 @@ function handleOverlayClick(e) {
 function saveProfileName() {
   const input = document.getElementById('profile-name-input');
   const name = input.value.trim();
+  if (!name) return;
   setDisplayName(name);
   const msg = document.getElementById('profile-name-msg');
   msg.className = 'profile-success';
   msg.textContent = 'Saved!';
   setTimeout(() => { msg.textContent = ''; }, 2000);
+  updateHeaderNamePill();
+  // Backfill: overwrite name on ALL existing scores for this uid
+  if (db && currentUserId) {
+    db.ref('scores').orderByChild('uid').equalTo(currentUserId).once('value').then(snap => {
+      const updates = {};
+      snap.forEach(child => {
+        updates['scores/' + child.key + '/name'] = name;
+      });
+      if (Object.keys(updates).length > 0) db.ref().update(updates).catch(() => {});
+      cachedScoreEntries = null; // invalidate cache so player list/search reflects new name
+    }).catch(() => {});
+  }
 }
 
 function renderProfileModal() {
@@ -4140,16 +4153,32 @@ function renderProfileModal() {
 function handleGoogleLink() {
   if (!firebase || !firebase.auth) return;
   const provider = new firebase.auth.GoogleAuthProvider();
+  const savedName = getDisplayName(); // preserve display name across uid change
   firebase.auth().currentUser.linkWithPopup(provider)
     .then(() => { renderProfileModal(); updateHeaderNamePill(); })
     .catch(err => {
       if (err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') return;
+      if (err.code === 'auth/credential-already-in-use' && err.credential) {
+        // Google account already belongs to a previous session — sign in with it directly.
+        // This happens when the user signed out and back in, getting a new anonymous uid.
+        firebase.auth().signInWithCredential(err.credential)
+          .then(() => {
+            // Restore display name if the Google account doesn't have one set
+            if (savedName && !getDisplayName()) setDisplayName(savedName);
+            renderProfileModal();
+            updateHeaderNamePill();
+            cachedScoreEntries = null; // refresh leaderboard/player data for new uid
+          })
+          .catch(innerErr => {
+            const msg = document.getElementById('profile-google-msg');
+            if (msg) { msg.className = 'profile-error'; msg.textContent = innerErr.message; }
+          });
+        return;
+      }
       const msg = document.getElementById('profile-google-msg');
       if (!msg) return;
       msg.className = 'profile-error';
-      msg.textContent = err.code === 'auth/credential-already-in-use'
-        ? 'That Google account is already linked to a different user.'
-        : err.message;
+      msg.textContent = err.message;
     });
 }
 
