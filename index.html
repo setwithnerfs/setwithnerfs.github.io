@@ -3628,10 +3628,23 @@ function playerSearch() {
   area.innerHTML = '<div class="player-empty">searching…</div>';
 
   const searchInEntries = (entries) => {
-    const all = entries.filter(e => (e.name || '').toLowerCase().includes(query));
+    // Find all uids whose most recent name matches the query
+    const matchingUids = new Set();
+    entries.forEach(e => {
+      if ((e.name || '').toLowerCase().includes(query)) matchingUids.add(e.uid);
+    });
+    // Then fetch ALL entries for those uids (same as clicking from player list)
+    const all = entries.filter(e => matchingUids.has(e.uid));
     playerAllEntries = all;
     playerFilterMods = new Set();
-    renderPlayerResults(all, query);
+    // Use the most recent name as display name
+    const src = cachedScoreEntries || lbGetLocal();
+    const latestName = [...matchingUids].map(uid => {
+      const runs = src.filter(e => e.uid === uid && e.name);
+      if (!runs.length) return null;
+      return runs.reduce((a, b) => (b.d > a.d ? b : a)).name;
+    }).filter(Boolean)[0] || query;
+    renderPlayerResults(all, latestName);
   };
 
   if (firebaseReady && db) {
