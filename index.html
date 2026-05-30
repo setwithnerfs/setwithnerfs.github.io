@@ -3021,6 +3021,16 @@ function renderLbEntries(entries) {
   }
   filtered.sort((a, b) => a.t - b.t);
 
+  // Keep only the best (fastest) score per player per modifier category
+  const seen = new Map();
+  filtered = filtered.filter(e => {
+    const catKey = [...(e.mods || [])].sort().join(',');
+    const playerKey = e.uid + '|' + catKey;
+    if (seen.has(playerKey)) return false;
+    seen.set(playerKey, true);
+    return true;
+  });
+
   if (filtered.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'lb-empty';
