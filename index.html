@@ -3014,6 +3014,45 @@ function _lbFilterKey() {
   return [...lbFilter].sort().join(',');
 }
 
+let _cloneArcSvgCounter = 0;
+function cloneArcSvg(k, w, h) {
+  // Clone arcana SVG from DOM, rewriting all mask/filter/clip IDs to be unique
+  // so multiple copies on the page don't clobber each other.
+  const arcArt = document.querySelector('#arc-' + k + ' .arcana-art');
+  if (!arcArt) return null;
+  const svgEl = arcArt.querySelector('svg');
+  if (!svgEl) return null;
+  const uid = 'arc-' + k + '-' + (++_cloneArcSvgCounter);
+  const clone = svgEl.cloneNode(true);
+  clone.setAttribute('width', w || 16);
+  clone.setAttribute('height', h || 16);
+  clone.style.display = 'block';
+  // Collect all id attributes inside the clone and build a remapping
+  const idMap = {};
+  clone.querySelectorAll('[id]').forEach(el => {
+    const oldId = el.getAttribute('id');
+    const newId = uid + '-' + oldId;
+    idMap[oldId] = newId;
+    el.setAttribute('id', newId);
+  });
+  // Rewrite all url(#...) and href/xlink:href references
+  const rewriteAttr = (el, attr) => {
+    const val = el.getAttribute(attr);
+    if (!val) return;
+    const replaced = val.replace(/url\(#([^)]+)\)/g, (_, id) => idMap[id] ? `url(#${idMap[id]})` : `url(#${id})`);
+    if (replaced !== val) el.setAttribute(attr, replaced);
+  };
+  clone.querySelectorAll('*').forEach(el => {
+    ['mask', 'fill', 'filter', 'clip-path', 'href', 'xlink:href'].forEach(a => rewriteAttr(el, a));
+    // Also handle style attributes with url()
+    const style = el.getAttribute('style');
+    if (style && style.includes('url(#')) {
+      el.setAttribute('style', style.replace(/url\(#([^)]+)\)/g, (_, id) => idMap[id] ? `url(#${idMap[id]})` : `url(#${id})`));
+    }
+  });
+  return clone;
+}
+
 function _makeLbEntry(e, rank) {
   const hasReplay = !!(e.history && e.initialDeck);
   const row = document.createElement('div');
@@ -3043,17 +3082,8 @@ function _makeLbEntry(e, rank) {
     e.mods.forEach(k => {
       const pip = document.createElement('div');
       pip.className = 'lb-mod-pip';
-      const arcArt = document.querySelector('#arc-' + k + ' .arcana-art');
-      if (arcArt) {
-        const svgEl = arcArt.querySelector('svg');
-        if (svgEl) {
-          const clone = svgEl.cloneNode(true);
-          clone.setAttribute('width', '16');
-          clone.setAttribute('height', '16');
-          clone.style.display = 'block';
-          pip.appendChild(clone);
-        }
-      }
+      const cloned = cloneArcSvg(k, 16, 16);
+      if (cloned) pip.appendChild(cloned);
       modsEl.appendChild(pip);
     });
   }
@@ -3495,17 +3525,8 @@ function openReplay(entry) {
     entry.mods.forEach(k => {
       const pip = document.createElement('div');
       pip.className = 'lb-mod-pip';
-      const arcArt = document.querySelector('#arc-' + k + ' .arcana-art');
-      if (arcArt) {
-        const svgEl = arcArt.querySelector('svg');
-        if (svgEl) {
-          const clone = svgEl.cloneNode(true);
-          clone.setAttribute('width', '16');
-          clone.setAttribute('height', '16');
-          clone.style.display = 'block';
-          pip.appendChild(clone);
-        }
-      }
+      const cloned = cloneArcSvg(k, 16, 16);
+      if (cloned) pip.appendChild(cloned);
       modsEl.appendChild(pip);
     });
   }
@@ -3979,9 +4000,8 @@ function renderPlayerResults(all, query) {
       e.mods.forEach(k => {
         const pip = document.createElement('div');
         pip.className = 'lb-mod-pip';
-        // Use the live DOM arcana art (same as filter cards) so all icons match
-        const arcEl = document.querySelector('#arc-' + k + ' .arcana-art');
-        if (arcEl) pip.innerHTML = arcEl.innerHTML;
+        const cloned = cloneArcSvg(k, 16, 16);
+        if (cloned) pip.appendChild(cloned);
         modsEl.appendChild(pip);
       });
     }
