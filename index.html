@@ -3008,11 +3008,252 @@ const MINI_ART = {
   fade:  `<svg width="13" height="20" viewBox="-15 -10 326 328"><g transform="rotate(-0.5,148,154)"><path fill="#3a3630" fill-rule="evenodd" d="M133.5 300.32C115.17 296.22 99.38 286.65 81.93 269.08 54.82 241.79 36.01 201.94 27.95 154.7 22 119.89 21.57 84.52 26.63 47c1.76-13.08 3.26-16.37 8.75-19.18 4.68-2.4 7.22-2.06 19.44 2.66 19.12 7.39 45.27 14.1 64.07 16.45 41.51 5.19 78.07.07 127.34-17.85 7.34-2.67 10.67-2.62 14.87.21 4.58 3.08 5.68 5.74 7.36 17.87 6.46 46.67 3.1 97.31-9.21 138.84-17.14 57.86-54.82 102.83-94.66 112.98-7.48 1.91-25.15 2.67-31.09 1.34zm31.78-56.23c10.29-3.56 18-8.32 25.22-15.61 7.73-7.78 12.67-16.09 15.54-26.13 2.19-7.65 3.33-7.49-11.04-1.56-17.17 7.1-25.75 8.66-47.5 8.67-16.4 0-20.23-.31-28-2.25-9.97-2.5-20.46-6.24-27.85-9.93-2.67-1.33-5.04-2.22-5.28-1.98-1.02 1.01 5.73 18.28 9.18 23.49 8.78 13.26 23.21 23.29 38.45 26.72 8.6 1.94 23.53 1.26 31.28-1.42z"/></g></svg>`,
 };
 
+// ── Leaderboard infinite-scroll state ─────────────────────────────────────────
+// For each filter key (sorted mod combo) we track:
+//   { seen: Map<playerKey, true>, rendered: number, lastT: number|null, lastKey: string|null, exhausted: bool }
+const _lbPageState = new Map();
+const LB_PAGE_SIZE = 100;
+let _lbScrollBound = false;
+let _lbFetching = false;
+let _lbCurrentFilterKey = '';
+
+function _lbFilterKey() {
+  return [...lbFilter].sort().join(',');
+}
+
+function _makeLbEntry(e, rank) {
+  const hasReplay = !!(e.history && e.initialDeck);
+  const row = document.createElement('div');
+  row.className = 'lb-entry';
+  if (hasReplay) {
+    row.title = 'Click to watch replay';
+    row.addEventListener('click', ev => {
+      if (ev.target.closest('.lb-name-link')) return;
+      openReplay(e);
+    });
+  } else {
+    row.style.cursor = 'default';
+  }
+
+  const rankEl = document.createElement('div');
+  rankEl.className = 'lb-rank' + (rank === 0 ? ' gold' : rank === 1 ? ' silver' : rank === 2 ? ' bronze' : '');
+  rankEl.textContent = rank + 1;
+
+  const modsEl = document.createElement('div');
+  modsEl.className = 'lb-mods';
+  if (!e.mods || e.mods.length === 0) {
+    const none = document.createElement('span');
+    none.className = 'lb-no-mods';
+    none.textContent = 'no modifiers';
+    modsEl.appendChild(none);
+  } else {
+    e.mods.forEach(k => {
+      const pip = document.createElement('div');
+      pip.className = 'lb-mod-pip';
+      const arcArt = document.querySelector('#arc-' + k + ' .arcana-art');
+      if (arcArt) {
+        const svgEl = arcArt.querySelector('svg');
+        if (svgEl) {
+          const clone = svgEl.cloneNode(true);
+          clone.setAttribute('width', '16');
+          clone.setAttribute('height', '16');
+          clone.style.display = 'block';
+          pip.appendChild(clone);
+        } else {
+          pip.innerHTML = MINI_ART[k] || '';
+        }
+      } else {
+        pip.innerHTML = MINI_ART[k] || '';
+      }
+      modsEl.appendChild(pip);
+    });
+  }
+
+  const secs = Math.floor(e.t / 1000);
+  const m = Math.floor(secs / 60), s = secs % 60;
+  const timeEl = document.createElement('div');
+  timeEl.className = 'lb-time';
+  timeEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+
+  const replayHint = document.createElement('div');
+  replayHint.style.cssText = 'font-size:10px;flex-shrink:0;color:var(--text-muted);opacity:' + (hasReplay ? '0.45' : '0') + ';';
+  replayHint.textContent = '▶';
+
+  row.appendChild(rankEl);
+  row.appendChild(modsEl);
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'lb-name';
+  const anonName = e.uid ? nameFromUid(e.uid) : null;
+  const displayName = e.name || anonName;
+  if (e.uid && e.uid === currentUserId && !e.name) {
+    nameEl.textContent = 'you';
+    nameEl.style.cssText = 'color:var(--teal);';
+  } else if (displayName) {
+    nameEl.className += ' lb-name-link';
+    nameEl.textContent = displayName;
+    nameEl.title = "View " + displayName + "'s profile";
+    nameEl.style.cssText = 'cursor:pointer;transition:color 0.15s;';
+    nameEl.addEventListener('mouseenter', () => nameEl.style.color = 'var(--teal)');
+    nameEl.addEventListener('mouseleave', () => nameEl.style.color = '');
+    nameEl.addEventListener('click', ev => { ev.stopPropagation(); openPlayerProfile(displayName, e.uid); });
+  } else {
+    nameEl.textContent = 'anon';
+    nameEl.style.cssText = 'color:var(--text-muted);font-style:italic;';
+  }
+  row.appendChild(nameEl);
+
+  if (e.name && e.uid && e.uid === currentUserId) {
+    const you = document.createElement('div');
+    you.style.cssText = 'font-size:9px;letter-spacing:1px;color:var(--teal);flex-shrink:0;';
+    you.textContent = 'you';
+    row.appendChild(timeEl);
+    row.appendChild(you);
+  } else {
+    row.appendChild(timeEl);
+  }
+
+  row.appendChild(replayHint);
+  return row;
+}
+
+// Fetch next page of leaderboard entries from Firebase, append to list.
+// Pages through ordered-by-t results, skipping dupes (1 PB per player per mod combo),
+// until we've rendered LB_PAGE_SIZE unique player entries or the DB is exhausted.
+function _lbFetchPage() {
+  if (_lbFetching) return;
+  const filterKey = _lbFilterKey();
+  const state = _lbPageState.get(filterKey);
+  if (!state || state.exhausted) return;
+
+  _lbFetching = true;
+  const list = document.getElementById('lb-list');
+
+  // Remove any existing sentinel/loading indicator
+  const oldSentinel = list.querySelector('.lb-sentinel');
+  if (oldSentinel) oldSentinel.remove();
+
+  const sentinel = document.createElement('div');
+  sentinel.className = 'lb-sentinel lb-empty';
+  sentinel.textContent = 'loading…';
+  list.appendChild(sentinel);
+
+  // Build query: order by t, paginate with startAfter cursor
+  let query = db.ref('scores').orderByChild('t').limitToFirst(LB_PAGE_SIZE * 4);
+  if (state.lastT !== null) {
+    // startAt is inclusive so we use lastT and skip via lastKey
+    query = db.ref('scores').orderByChild('t').startAt(state.lastT, state.lastKey).limitToFirst(LB_PAGE_SIZE * 4);
+  }
+
+  query.once('value').then(snap => {
+    let fetched = 0;
+    let lastT = state.lastT;
+    let lastKey = state.lastKey;
+    let anyNew = false;
+
+    snap.forEach(child => {
+      // Skip the cursor entry itself (startAt is inclusive)
+      if (state.lastKey && child.key === state.lastKey) return;
+
+      const raw = child.val();
+      const e = {
+        ...raw,
+        mods:        tryParseJson(raw.mods, []),
+        history:     tryParseJson(raw.history, null),
+        initialDeck: tryParseJson(raw.initialDeck, null),
+      };
+
+      // Apply mod filter
+      let passesFilter;
+      if (lbFilter.size === 0) {
+        passesFilter = !e.mods || e.mods.length === 0;
+      } else {
+        passesFilter = [...lbFilter].every(k => (e.mods||[]).includes(k));
+      }
+      if (!passesFilter) {
+        lastT = e.t;
+        lastKey = child.key;
+        return;
+      }
+
+      // Dedup: 1 PB per player per exact mod combo (already sorted by t asc so first = fastest)
+      const catKey = [...(e.mods || [])].sort().join(',');
+      const playerKey = (e.uid || child.key) + '|' + catKey;
+      if (state.seen.has(playerKey)) {
+        lastT = e.t;
+        lastKey = child.key;
+        return;
+      }
+
+      state.seen.set(playerKey, true);
+      lastT = e.t;
+      lastKey = child.key;
+      anyNew = true;
+
+      // Remove sentinel before appending real entry
+      const s = list.querySelector('.lb-sentinel');
+      if (s) s.remove();
+
+      const rank = state.rendered;
+      state.rendered++;
+      list.appendChild(_makeLbEntry(e, rank));
+      fetched++;
+    });
+
+    state.lastT = lastT;
+    state.lastKey = lastKey;
+
+    const snapSize = snap.size !== undefined ? snap.size : (() => { let c = 0; snap.forEach(() => c++); return c; })();
+
+    // If we got fewer raw results than we asked for, DB is exhausted
+    if (snapSize < LB_PAGE_SIZE * 4 || !anyNew) {
+      state.exhausted = true;
+      const s = list.querySelector('.lb-sentinel');
+      if (s) s.remove();
+      if (state.rendered === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'lb-empty';
+        empty.textContent = lbFilter.size ? 'no runs with these modifiers' : 'no vanilla runs yet';
+        list.appendChild(empty);
+      }
+    } else {
+      // Leave sentinel for scroll trigger
+      const s = list.querySelector('.lb-sentinel');
+      if (!s) {
+        const newSentinel = document.createElement('div');
+        newSentinel.className = 'lb-sentinel';
+        list.appendChild(newSentinel);
+      }
+    }
+
+    _lbFetching = false;
+  }).catch(err => {
+    console.error('[SET] Failed to load scores:', err);
+    const s = list.querySelector('.lb-sentinel');
+    if (s) { s.textContent = 'failed to load — check console'; }
+    _lbFetching = false;
+  });
+}
+
+function _lbOnScroll() {
+  if (_lbFetching) return;
+  if (!document.getElementById('panel-leaderboard').classList.contains('active')) return;
+  const filterKey = _lbFilterKey();
+  if (filterKey !== _lbCurrentFilterKey) return;
+  const state = _lbPageState.get(filterKey);
+  if (!state || state.exhausted) return;
+  const sentinel = document.querySelector('#lb-list .lb-sentinel');
+  if (!sentinel) return;
+  const rect = sentinel.getBoundingClientRect();
+  if (rect.top < window.innerHeight + 300) {
+    _lbFetchPage();
+  }
+}
+
 function renderLbEntries(entries) {
+  // Fallback for localStorage mode — render all at once (no pagination needed)
   const list = document.getElementById('lb-list');
   list.innerHTML = '';
-
-  // filter — empty = vanilla only, mods selected = must include ALL selected mods
   let filtered;
   if (lbFilter.size === 0) {
     filtered = entries.filter(e => !e.mods || e.mods.length === 0);
@@ -3020,17 +3261,14 @@ function renderLbEntries(entries) {
     filtered = entries.filter(e => [...lbFilter].every(k => (e.mods||[]).includes(k)));
   }
   filtered.sort((a, b) => a.t - b.t);
-
-  // Keep only the best (fastest) score per player per modifier category
   const seen = new Map();
   filtered = filtered.filter(e => {
     const catKey = [...(e.mods || [])].sort().join(',');
-    const playerKey = e.uid + '|' + catKey;
+    const playerKey = (e.uid || '_') + '|' + catKey;
     if (seen.has(playerKey)) return false;
     seen.set(playerKey, true);
     return true;
   });
-
   if (filtered.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'lb-empty';
@@ -3038,132 +3276,28 @@ function renderLbEntries(entries) {
     list.appendChild(empty);
     return;
   }
-
-  filtered.forEach((e, i) => {
-    const hasReplay = !!(e.history && e.initialDeck);
-    const row = document.createElement('div');
-    row.className = 'lb-entry';
-    if (hasReplay) {
-      row.title = 'Click to watch replay';
-      row.addEventListener('click', ev => {
-        if (ev.target.closest('.lb-name-link')) return;
-        openReplay(e);
-      });
-    } else {
-      row.style.cursor = 'default';
-    }
-
-    const rank = document.createElement('div');
-    rank.className = 'lb-rank' + (i === 0 ? ' gold' : i === 1 ? ' silver' : i === 2 ? ' bronze' : '');
-    rank.textContent = i + 1;
-
-    const modsEl = document.createElement('div');
-    modsEl.className = 'lb-mods';
-    if (e.mods.length === 0) {
-      const none = document.createElement('span');
-      none.className = 'lb-no-mods';
-      none.textContent = 'no modifiers';
-      modsEl.appendChild(none);
-    } else {
-      e.mods.forEach(k => {
-        const pip = document.createElement('div');
-        pip.className = 'lb-mod-pip';
-        const arcArt = document.querySelector('#arc-' + k + ' .arcana-art');
-        if (arcArt) {
-          const svgEl = arcArt.querySelector('svg');
-          if (svgEl) {
-            const clone = svgEl.cloneNode(true);
-            clone.setAttribute('width', '16');
-            clone.setAttribute('height', '16');
-            clone.style.display = 'block';
-            pip.appendChild(clone);
-          } else {
-            pip.innerHTML = MINI_ART[k] || '';
-          }
-        } else {
-          pip.innerHTML = MINI_ART[k] || '';
-        }
-        modsEl.appendChild(pip);
-      });
-    }
-
-    const secs = Math.floor(e.t / 1000);
-    const m = Math.floor(secs / 60), s = secs % 60;
-    const timeEl = document.createElement('div');
-    timeEl.className = 'lb-time';
-    timeEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
-
-    const replayHint = document.createElement('div');
-    replayHint.style.cssText = 'font-size:10px;flex-shrink:0;color:var(--text-muted);opacity:' + (hasReplay ? '0.45' : '0') + ';';
-    replayHint.textContent = '▶';
-
-    row.appendChild(rank);
-    row.appendChild(modsEl);
-
-    const nameEl = document.createElement('div');
-    nameEl.className = 'lb-name';
-    const anonName = e.uid ? nameFromUid(e.uid) : null;
-    const displayName = e.name || anonName;
-    if (e.uid && e.uid === currentUserId && !e.name) {
-      nameEl.textContent = 'you';
-      nameEl.style.cssText = 'color:var(--teal);';
-    } else if (displayName) {
-      nameEl.className += ' lb-name-link';
-      nameEl.textContent = displayName;
-      nameEl.title = "View " + displayName + "'s profile";
-      nameEl.style.cssText = 'cursor:pointer;transition:color 0.15s;';
-      nameEl.addEventListener('mouseenter', () => nameEl.style.color = 'var(--teal)');
-      nameEl.addEventListener('mouseleave', () => nameEl.style.color = '');
-      nameEl.addEventListener('click', ev => { ev.stopPropagation(); openPlayerProfile(displayName, e.uid); });
-    } else {
-      nameEl.textContent = 'anon';
-      nameEl.style.cssText = 'color:var(--text-muted);font-style:italic;';
-    }
-    row.appendChild(nameEl);
-
-    if (e.name && e.uid && e.uid === currentUserId) {
-      const you = document.createElement('div');
-      you.style.cssText = 'font-size:9px;letter-spacing:1px;color:var(--teal);flex-shrink:0;';
-      you.textContent = 'you';
-      row.appendChild(timeEl);
-      row.appendChild(you);
-    } else {
-      row.appendChild(timeEl);
-    }
-
-    row.appendChild(replayHint);
-    list.appendChild(row);
-  });
+  filtered.forEach((e, i) => list.appendChild(_makeLbEntry(e, i)));
 }
 
 function renderLeaderboard() {
   const list = document.getElementById('lb-list');
+  list.innerHTML = '';
 
   if (firebaseReady && db) {
-    list.innerHTML = '<div class="lb-empty">loading…</div>';
-    // Fetch top 100 scores ordered by time
-    db.ref('scores').orderByChild('t').limitToFirst(100).once('value')
-      .then(snap => {
-        const entries = [];
-        snap.forEach(child => {
-          const raw = child.val();
-          // Deserialise JSON strings back to arrays
-          entries.push({
-            ...raw,
-            mods:        tryParseJson(raw.mods, []),
-            history:     tryParseJson(raw.history, null),
-            initialDeck: tryParseJson(raw.initialDeck, null),
-          });
-        });
-        cachedScoreEntries = entries; // cache for player list
-        renderLbEntries(entries);
-      })
-      .catch(err => {
-        console.error('[SET] Failed to load scores:', err);
-        list.innerHTML = '<div class="lb-empty">failed to load — check console</div>';
-      });
+    const filterKey = _lbFilterKey();
+    _lbCurrentFilterKey = filterKey;
+
+    // Reset page state for this filter
+    _lbPageState.set(filterKey, { seen: new Map(), rendered: 0, lastT: null, lastKey: null, exhausted: false });
+
+    // Bind scroll listener once
+    if (!_lbScrollBound) {
+      window.addEventListener('scroll', _lbOnScroll, { passive: true });
+      _lbScrollBound = true;
+    }
+
+    _lbFetchPage();
   } else {
-    // Fallback: localStorage
     renderLbEntries(lbGetLocal());
   }
 }
@@ -3605,30 +3739,53 @@ function renderAllPlayers() {
     area.appendChild(list);
   };
   if (firebaseReady && db) {
-    // Reuse cached leaderboard entries if available; otherwise fetch with same ordered query
-    if (cachedScoreEntries) {
-      build(cachedScoreEntries);
-    } else {
-      db.ref('scores').orderByChild('t').limitToFirst(100).once('value').then(snap => {
-        const e = [];
-        snap.forEach(c => {
-          const raw = c.val();
-          e.push({ ...raw, mods: tryParseJson(raw.mods, []), history: tryParseJson(raw.history, null), initialDeck: tryParseJson(raw.initialDeck, null) });
-        });
-        cachedScoreEntries = e;
-        build(e);
-      }).catch(err => { console.error('[PLAYERS] error:', err); area.innerHTML='<div class="player-empty">error loading</div>'; });
-    }
+    // Fetch a lightweight summary of all players: just uid+name+t, no history/deck
+    db.ref('scores').orderByChild('t').once('value').then(snap => {
+      const e = [];
+      snap.forEach(c => {
+        const raw = c.val();
+        e.push({ uid: raw.uid, name: raw.name, t: raw.t, d: raw.d, mods: tryParseJson(raw.mods, []) });
+      });
+      build(e);
+    }).catch(err => { console.error('[PLAYERS] error:', err); area.innerHTML='<div class="player-empty">error loading</div>'; });
   } else { build(lbGetLocal()); }
+}
+
+function _fetchAllRunsForUid(uid) {
+  // Fetch every run for a specific player directly from Firebase (no limit)
+  return db.ref('scores').orderByChild('uid').equalTo(uid).once('value').then(snap => {
+    const entries = [];
+    snap.forEach(child => {
+      const raw = child.val();
+      entries.push({
+        ...raw,
+        mods:        tryParseJson(raw.mods, []),
+        history:     tryParseJson(raw.history, null),
+        initialDeck: tryParseJson(raw.initialDeck, null),
+      });
+    });
+    return entries;
+  });
 }
 
 function openPlayerByUid(uid, displayName) {
   document.getElementById('player-search-input').value = displayName;
-  const src = cachedScoreEntries || lbGetLocal();
-  const all = src.filter(e => e.uid === uid);
-  playerAllEntries = all;
-  playerFilterMods = new Set();
-  renderPlayerResults(all, displayName);
+  if (firebaseReady && db) {
+    document.getElementById('player-results-area').innerHTML = '<div class="player-empty">loading…</div>';
+    _fetchAllRunsForUid(uid).then(all => {
+      playerAllEntries = all;
+      playerFilterMods = new Set();
+      renderPlayerResults(all, displayName);
+    }).catch(() => {
+      document.getElementById('player-results-area').innerHTML = '<div class="player-empty">error loading runs</div>';
+    });
+  } else {
+    const src = lbGetLocal();
+    const all = src.filter(e => e.uid === uid);
+    playerAllEntries = all;
+    playerFilterMods = new Set();
+    renderPlayerResults(all, displayName);
+  }
 }
 
 function playerSearch() {
@@ -3637,47 +3794,52 @@ function playerSearch() {
   if (!query) { renderAllPlayers(); return; }
   area.innerHTML = '<div class="player-empty">searching…</div>';
 
-  const searchInEntries = (entries) => {
-    // Find all uids whose most recent name matches the query
-    const matchingUids = new Set();
-    entries.forEach(e => {
-      if ((e.name || '').toLowerCase().includes(query)) matchingUids.add(e.uid);
+  if (firebaseReady && db) {
+    // Search by name: fetch all scores ordered by name, filter client-side
+    // (Firebase RTDB doesn't support full-text search, so we fetch all and filter)
+    db.ref('scores').orderByChild('name').once('value').then(snap => {
+      const matchingUids = new Set();
+      const latestNameByUid = new Map();
+      snap.forEach(child => {
+        const raw = child.val();
+        if ((raw.name || '').toLowerCase().includes(query)) {
+          matchingUids.add(raw.uid);
+        }
+        // Track latest name per uid
+        if (raw.uid && raw.name) {
+          const prev = latestNameByUid.get(raw.uid);
+          if (!prev || raw.d > prev.d) latestNameByUid.set(raw.uid, { name: raw.name, d: raw.d });
+        }
+      });
+      if (!matchingUids.size) {
+        area.innerHTML = `<div class="player-empty">no player found matching "${query}"</div>`;
+        return;
+      }
+      // Fetch all runs for all matching uids in parallel
+      const uid = [...matchingUids][0]; // support single player for now; extend if needed
+      const displayName = latestNameByUid.get(uid)?.name || query;
+      _fetchAllRunsForUid(uid).then(all => {
+        playerAllEntries = all;
+        playerFilterMods = new Set();
+        renderPlayerResults(all, displayName);
+      });
+    }).catch(err => {
+      area.innerHTML = '<div class="player-empty">error loading — check console</div>';
+      console.error(err);
     });
-    // Then fetch ALL entries for those uids (same as clicking from player list)
+  } else {
+    const entries = lbGetLocal();
+    const matchingUids = new Set();
+    entries.forEach(e => { if ((e.name || '').toLowerCase().includes(query)) matchingUids.add(e.uid); });
     const all = entries.filter(e => matchingUids.has(e.uid));
     playerAllEntries = all;
     playerFilterMods = new Set();
-    // Use the most recent name as display name
-    const src = cachedScoreEntries || lbGetLocal();
     const latestName = [...matchingUids].map(uid => {
-      const runs = src.filter(e => e.uid === uid && e.name);
+      const runs = entries.filter(e => e.uid === uid && e.name);
       if (!runs.length) return null;
       return runs.reduce((a, b) => (b.d > a.d ? b : a)).name;
     }).filter(Boolean)[0] || query;
     renderPlayerResults(all, latestName);
-  };
-
-  if (firebaseReady && db) {
-    if (cachedScoreEntries) {
-      searchInEntries(cachedScoreEntries);
-    } else {
-      db.ref('scores').orderByChild('t').limitToFirst(100).once('value')
-        .then(snap => {
-          const entries = [];
-          snap.forEach(child => {
-            const raw = child.val();
-            entries.push({ ...raw, mods: tryParseJson(raw.mods, []), history: tryParseJson(raw.history, null), initialDeck: tryParseJson(raw.initialDeck, null) });
-          });
-          cachedScoreEntries = entries;
-          searchInEntries(entries);
-        })
-        .catch(err => {
-          area.innerHTML = '<div class="player-empty">error loading — check console</div>';
-          console.error(err);
-        });
-    }
-  } else {
-    searchInEntries(lbGetLocal());
   }
 }
 
