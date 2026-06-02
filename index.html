@@ -3000,13 +3000,6 @@ function buildLbFilterCards() {
   });
 }
 
-const MINI_ART = {
-  fill:  `<svg width="13" height="13" viewBox="-60 -60 120 120"><g fill="#3a3630"><g transform="rotate(0)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(45)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(90)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(135)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(180)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(225)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(270)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(315)"><polygon points="-6,-30 0,-56 6,-30"/></g></g><circle r="26" fill="#3a3630"/></svg>`,
-  morph: `<svg width="13" height="13" viewBox="0 0 74 74"><defs><mask id="lbmm"><rect width="74" height="74" fill="white"/><circle cx="46" cy="28" r="22" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#lbmm)"/></svg>`,
-  clone: `<svg width="13" height="13" viewBox="-54 -54 108 108"><polygon points="0,-50 5.7,-13.9 19.8,-19.8 13.9,-5.7 50,0 13.9,5.7 19.8,19.8 5.7,13.9 0,50 -5.7,13.9 -19.8,19.8 -13.9,5.7 -50,0 -13.9,-5.7 -19.8,-19.8 -5.7,-13.9" fill="#3a3630"/><path fill="#f5f0e8" d="M-13,0 A22,22 0 0,0 13,0 A22,22 0 0,0 -13,0 Z"/><circle cx="0" cy="0" r="4" fill="#3a3630"/></svg>`,
-  hue:   `<svg width="13" height="13" viewBox="0 0 74 74"><defs><mask id="lbhue"><rect width="74" height="74" fill="white"/><circle cx="50" cy="24" r="24" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#lbhue)"/></svg>`,
-  fade:  `<svg width="13" height="20" viewBox="-15 -10 326 328"><g transform="rotate(-0.5,148,154)"><path fill="#3a3630" fill-rule="evenodd" d="M133.5 300.32C115.17 296.22 99.38 286.65 81.93 269.08 54.82 241.79 36.01 201.94 27.95 154.7 22 119.89 21.57 84.52 26.63 47c1.76-13.08 3.26-16.37 8.75-19.18 4.68-2.4 7.22-2.06 19.44 2.66 19.12 7.39 45.27 14.1 64.07 16.45 41.51 5.19 78.07.07 127.34-17.85 7.34-2.67 10.67-2.62 14.87.21 4.58 3.08 5.68 5.74 7.36 17.87 6.46 46.67 3.1 97.31-9.21 138.84-17.14 57.86-54.82 102.83-94.66 112.98-7.48 1.91-25.15 2.67-31.09 1.34zm31.78-56.23c10.29-3.56 18-8.32 25.22-15.61 7.73-7.78 12.67-16.09 15.54-26.13 2.19-7.65 3.33-7.49-11.04-1.56-17.17 7.1-25.75 8.66-47.5 8.67-16.4 0-20.23-.31-28-2.25-9.97-2.5-20.46-6.24-27.85-9.93-2.67-1.33-5.04-2.22-5.28-1.98-1.02 1.01 5.73 18.28 9.18 23.49 8.78 13.26 23.21 23.29 38.45 26.72 8.6 1.94 23.53 1.26 31.28-1.42z"/></g></svg>`,
-};
 
 // ── Leaderboard infinite-scroll state ─────────────────────────────────────────
 // For each filter key (sorted mod combo) we track:
@@ -3059,11 +3052,7 @@ function _makeLbEntry(e, rank) {
           clone.setAttribute('height', '16');
           clone.style.display = 'block';
           pip.appendChild(clone);
-        } else {
-          pip.innerHTML = MINI_ART[k] || '';
         }
-      } else {
-        pip.innerHTML = MINI_ART[k] || '';
       }
       modsEl.appendChild(pip);
     });
@@ -3479,13 +3468,7 @@ function replayUpdateSpeed() {
   document.getElementById('replay-speed-label').textContent = mult + '×';
 }
 
-const MINI_ART_REPLAY = {
-  fill:  `<svg width="13" height="13" viewBox="-60 -60 120 120"><g fill="#3a3630"><g transform="rotate(0)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(45)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(90)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(135)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(180)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(225)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(270)"><polygon points="-6,-30 0,-56 6,-30"/></g><g transform="rotate(315)"><polygon points="-6,-30 0,-56 6,-30"/></g></g><circle r="26" fill="#3a3630"/></svg>`,
-  morph: `<svg width="13" height="13" viewBox="0 0 74 74"><defs><mask id="rplmm"><rect width="74" height="74" fill="white"/><circle cx="46" cy="28" r="22" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#rplmm)"/></svg>`,
-  clone: `<svg width="13" height="13" viewBox="-54 -54 108 108"><polygon points="0,-50 5.7,-13.9 19.8,-19.8 13.9,-5.7 50,0 13.9,5.7 19.8,19.8 5.7,13.9 0,50 -5.7,13.9 -19.8,19.8 -13.9,5.7 -50,0 -13.9,-5.7 -19.8,-19.8 -5.7,-13.9" fill="#3a3630"/><path fill="#f5f0e8" d="M-13,0 A22,22 0 0,0 13,0 A22,22 0 0,0 -13,0 Z"/><circle cx="0" cy="0" r="4" fill="#3a3630"/></svg>`,
-  hue:   `<svg width="13" height="13" viewBox="0 0 74 74"><defs><mask id="rplhue"><rect width="74" height="74" fill="white"/><circle cx="50" cy="24" r="24" fill="black"/></mask></defs><circle cx="37" cy="37" r="28" fill="#3a3630" mask="url(#rplhue)"/></svg>`,
-  fade:  `<svg width="13" height="20" viewBox="-15 -10 326 328"><g transform="rotate(-0.5,148,154)"><path fill="#3a3630" fill-rule="evenodd" d="M133.5 300.32C81.93 269.08 27.95 154.7 26.63 47c1.76-13.08 8.75-19.18 127.34-17.85 7.34-2.67 268.46 47.16 259.25 186-17.14 57.86-94.66 112.98-31.09 1.34z"/></g></svg>`,
-};
+
 
 function openReplay(entry) {
   replayEntry   = entry;
@@ -3512,7 +3495,17 @@ function openReplay(entry) {
     entry.mods.forEach(k => {
       const pip = document.createElement('div');
       pip.className = 'lb-mod-pip';
-      pip.innerHTML = MINI_ART_REPLAY[k] || '';
+      const arcArt = document.querySelector('#arc-' + k + ' .arcana-art');
+      if (arcArt) {
+        const svgEl = arcArt.querySelector('svg');
+        if (svgEl) {
+          const clone = svgEl.cloneNode(true);
+          clone.setAttribute('width', '16');
+          clone.setAttribute('height', '16');
+          clone.style.display = 'block';
+          pip.appendChild(clone);
+        }
+      }
       modsEl.appendChild(pip);
     });
   }
@@ -3988,7 +3981,7 @@ function renderPlayerResults(all, query) {
         pip.className = 'lb-mod-pip';
         // Use the live DOM arcana art (same as filter cards) so all icons match
         const arcEl = document.querySelector('#arc-' + k + ' .arcana-art');
-        pip.innerHTML = arcEl ? arcEl.innerHTML : (MINI_ART[k] || '');
+        if (arcEl) pip.innerHTML = arcEl.innerHTML;
         modsEl.appendChild(pip);
       });
     }
