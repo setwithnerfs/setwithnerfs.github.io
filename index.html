@@ -4135,12 +4135,12 @@ function _buildImprovChartConfig(sorted) {
       scales: {
         x: (() => {
           const xs = points.map(p => p.x);
-          const xMin = Math.min(...xs), xMax = Math.max(...xs);
+          const xMin = Math.min(...xs), xMax = Date.now();
           const xPad = (xMax - xMin) * 0.08 || 86400000;
           return {
             type: 'linear',
             min: xMin - xPad,
-            max: xMax + xPad,
+            max: xMax + xPad * 0.3,
             ticks: {
               color: mutedCol,
               font: { family: 'DM Mono, monospace', size: 10 },
@@ -4233,12 +4233,18 @@ function renderPlayerChart(all) {
   canvas.height = 220;
   const cfg = _buildImprovChartConfig(sorted);
   if (!cfg) return;
-  playerChartInstance = new Chart(ctx, cfg);
 
-  canvas.style.cursor = 'default';
-  canvas.addEventListener('mousemove', ev => {
-    const pts = playerChartInstance.getElementsAtEventForMode(ev, 'nearest', { intersect: true }, false);
-    canvas.style.cursor = pts.length && pts[0].datasetIndex === 0 ? 'pointer' : 'default';
+  // Defer to next frame so panel is painted and canvas has real dimensions,
+  // ensuring Chart.js animation plays from a visible state
+  requestAnimationFrame(() => {
+    if (playerChartInstance) { playerChartInstance.destroy(); playerChartInstance = null; }
+    playerChartInstance = new Chart(canvas.getContext('2d'), cfg);
+
+    canvas.style.cursor = 'default';
+    canvas.addEventListener('mousemove', ev => {
+      const pts = playerChartInstance.getElementsAtEventForMode(ev, 'nearest', { intersect: true }, false);
+      canvas.style.cursor = pts.length && pts[0].datasetIndex === 0 ? 'pointer' : 'default';
+    });
   });
 }
 
