@@ -4145,8 +4145,8 @@ function _buildImprovChartConfig(sorted) {
           const xPad = msPerPx * rem;
           return {
             type: 'linear',
-            suggestedMin: xMin - xPad,
-            suggestedMax: xNow + xPad,
+            min: xMin - xPad,
+            max: xNow + xPad,
             ticks: {
               color: mutedCol,
               font: { family: 'DM Mono, monospace', size: 10 },
@@ -4170,8 +4170,8 @@ function _buildImprovChartConfig(sorted) {
           const yPad = secPerPx * rem;
           return {
             reverse: false,
-            suggestedMin: yMin - yPad,
-            suggestedMax: yMax + yPad,
+            min: yMin - yPad,
+            max: yMax + yPad,
             ticks: {
               color: mutedCol,
               font: { family: 'DM Mono, monospace', size: 10 },
