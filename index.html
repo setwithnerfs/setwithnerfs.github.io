@@ -4135,12 +4135,18 @@ function _buildImprovChartConfig(sorted) {
       scales: {
         x: (() => {
           const xs = points.map(p => p.x);
-          const xMin = Math.min(...xs), xMax = Date.now();
-          const xPad = (xMax - xMin) * 0.08 || 86400000;
+          const xMin = Math.min(...xs), xDataMax = Math.max(...xs);
+          const xNow = Date.now();
+          const xRange = xNow - xMin || 86400000;
+          // 1rem padding: convert pixel rem to ms using canvas width
+          const canvasW = document.getElementById('player-chart-canvas')?.parentElement?.clientWidth || 520;
+          const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+          const msPerPx = xRange / canvasW;
+          const xPad = msPerPx * rem;
           return {
             type: 'linear',
             min: xMin - xPad,
-            max: xMax + xPad * 0.3,
+            max: xNow + xPad,
             ticks: {
               color: mutedCol,
               font: { family: 'DM Mono, monospace', size: 10 },
@@ -4157,7 +4163,11 @@ function _buildImprovChartConfig(sorted) {
         y: (() => {
           const ys = points.map(p => p.y);
           const yMin = Math.min(...ys), yMax = Math.max(...ys);
-          const yPad = (yMax - yMin) * 0.18 || 5;
+          const yRange = yMax - yMin || 10;
+          // 1rem padding: convert pixel rem to seconds using canvas height
+          const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+          const secPerPx = yRange / 220;
+          const yPad = secPerPx * rem;
           return {
             reverse: false,
             min: yMin - yPad,
@@ -4234,18 +4244,17 @@ function renderPlayerChart(all) {
   const cfg = _buildImprovChartConfig(sorted);
   if (!cfg) return;
 
-  // Defer to next frame so panel is painted and canvas has real dimensions,
-  // ensuring Chart.js animation plays from a visible state
-  requestAnimationFrame(() => {
+  // Double-rAF: first frame applies display:block, second frame has real layout dimensions
+  if (playerChartInstance) { playerChartInstance.destroy(); playerChartInstance = null; }
+  requestAnimationFrame(() => requestAnimationFrame(() => {
     if (playerChartInstance) { playerChartInstance.destroy(); playerChartInstance = null; }
     playerChartInstance = new Chart(canvas.getContext('2d'), cfg);
-
     canvas.style.cursor = 'default';
     canvas.addEventListener('mousemove', ev => {
       const pts = playerChartInstance.getElementsAtEventForMode(ev, 'nearest', { intersect: true }, false);
       canvas.style.cursor = pts.length && pts[0].datasetIndex === 0 ? 'pointer' : 'default';
     });
-  });
+  }));
 }
 
 
