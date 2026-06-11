@@ -1981,6 +1981,16 @@ function renderBoard() {
   const { W, cardW, cardH, gap } = layout;
   const h = boardHeight(board.length, layout);
 
+  // If devil mode is on and card dimensions changed, rebuild all overlays
+  const layoutChanged = _lastCardW !== cardW || _lastCardH !== cardH;
+  if (devilOn && layoutChanged && sprites.size > 0) {
+    stopDevil();
+    _lastCardW = cardW; _lastCardH = cardH;
+    // rebuild proceeds normally; startDevil() called at the bottom
+  } else {
+    _lastCardW = cardW; _lastCardH = cardH;
+  }
+
   // Size the container
   const container = document.getElementById('board-container');
   container.style.height = h + 'px';
@@ -2058,6 +2068,8 @@ function renderBoard() {
 
   updateKeyLabels();
   ensureRaf();
+  // If devil was stopped above due to resize, restart it now that sprites are repositioned
+  if (devilOn && layoutChanged) startDevil();
 }
 
 // ─── Keyboard shortcuts (ported from setwithfriends) ─────────────────────────
@@ -2814,6 +2826,7 @@ function onFadeToggle() {
 let devilOn  = false;
 let devilRafs = new Map(); // card -> rafId
 let devilGlobalStart = null; // shared clock so all cards stay in phase
+let _lastCardW = 0, _lastCardH = 0; // for resize detection in devil mode
 
 const DEVIL_COLORS = ['#9333ea','#16a34a','#dc2626'];
 const DEVIL_SHAPE_CENTERS = [{x:106.07,y:197.76},{x:100,y:200},{x:100,y:200}];
@@ -2854,9 +2867,14 @@ function startDevilCard(card, sprite) {
   const container = document.createElement('div');
   container.style.cssText = `position:absolute;top:0;left:0;width:${CW}px;height:${CH}px;overflow:hidden;border-radius:inherit;`;
 
+  // Resolve CSS variable values for use in SVG attributes
+  const CS = getComputedStyle(document.documentElement);
+  const DARK_COLOR  = (CS.getPropertyValue('--bg').trim()      || '#0f0e0d');
+  const CREAM_COLOR = (CS.getPropertyValue('--card-bg').trim() || '#f5f0e8');
+
   // bg color div
   const colorDiv = document.createElement('div');
-  colorDiv.style.cssText = `position:absolute;top:0;left:0;width:${CW}px;height:${CH}px;background:#000;`;
+  colorDiv.style.cssText = `position:absolute;top:0;left:0;width:${CW}px;height:${CH}px;background:${DARK_COLOR};`;
   container.appendChild(colorDiv);
 
   // final bg svg
@@ -2866,11 +2884,11 @@ function startDevilCard(card, sprite) {
   finalSvg.style.cssText = 'position:absolute;top:0;left:0;opacity:0;';
   if (fill === 'solid') {
     const r = document.createElementNS(svgNS,'rect');
-    r.setAttribute('width',CW); r.setAttribute('height',CH); r.setAttribute('fill','#000');
+    r.setAttribute('width',CW); r.setAttribute('height',CH); r.setAttribute('fill',DARK_COLOR);
     finalSvg.appendChild(r);
   } else if (fill === 'outline') {
     const r = document.createElementNS(svgNS,'rect');
-    r.setAttribute('width',CW); r.setAttribute('height',CH); r.setAttribute('fill','#fff');
+    r.setAttribute('width',CW); r.setAttribute('height',CH); r.setAttribute('fill',CREAM_COLOR);
     finalSvg.appendChild(r);
   } else {
     const uid = `dstripe-${card}-${Date.now()}`;
@@ -2878,8 +2896,8 @@ function startDevilCard(card, sprite) {
     const pat = document.createElementNS(svgNS,'pattern');
     pat.setAttribute('id',uid); pat.setAttribute('patternUnits','userSpaceOnUse');
     pat.setAttribute('width',CW); pat.setAttribute('height','6'); pat.setAttribute('patternTransform', `translate(0,${((CH % 6) / 2)})`);
-    const bg = document.createElementNS(svgNS,'rect'); bg.setAttribute('width',CW); bg.setAttribute('height','6'); bg.setAttribute('fill','#fff'); pat.appendChild(bg);
-    const ln = document.createElementNS(svgNS,'line'); ln.setAttribute('x1','0'); ln.setAttribute('y1','3'); ln.setAttribute('x2',CW); ln.setAttribute('y2','3'); ln.setAttribute('stroke','#000'); ln.setAttribute('stroke-width','3'); pat.appendChild(ln);
+    const bg = document.createElementNS(svgNS,'rect'); bg.setAttribute('width',CW); bg.setAttribute('height','6'); bg.setAttribute('fill',CREAM_COLOR); pat.appendChild(bg);
+    const ln = document.createElementNS(svgNS,'line'); ln.setAttribute('x1','0'); ln.setAttribute('y1','3'); ln.setAttribute('x2',CW); ln.setAttribute('y2','3'); ln.setAttribute('stroke',DARK_COLOR); ln.setAttribute('stroke-width','3'); pat.appendChild(ln);
     defs.appendChild(pat); finalSvg.appendChild(defs);
     const r = document.createElementNS(svgNS,'rect'); r.setAttribute('width',CW); r.setAttribute('height',CH); r.setAttribute('fill',`url(#${uid})`); finalSvg.appendChild(r);
   }
@@ -2892,7 +2910,7 @@ function startDevilCard(card, sprite) {
   maskSvg.style.cssText = 'position:absolute;top:0;left:0;';
   const defs2 = document.createElementNS(svgNS,'defs');
   const mask = document.createElementNS(svgNS,'mask'); mask.setAttribute('id',maskUid);
-  const maskBg = document.createElementNS(svgNS,'rect'); maskBg.setAttribute('width',CW); maskBg.setAttribute('height',CH); maskBg.setAttribute('fill','white'); mask.appendChild(maskBg);
+  const maskBg = document.createElementNS(svgNS,'rect'); maskBg.setAttribute('width',CW); maskBg.setAttribute('height',CH); maskBg.setAttribute('fill','white'); mask.appendChild(maskBg); // mask fill must stay white (SVG mask luminance)
   const cutoutGroups = [];
   for (let i=0;i<count;i++) {
     const g = document.createElementNS(svgNS,'g');
@@ -2900,7 +2918,7 @@ function startDevilCard(card, sprite) {
     g.appendChild(p); mask.appendChild(g); cutoutGroups.push(g);
   }
   defs2.appendChild(mask); maskSvg.appendChild(defs2);
-  const visRect = document.createElementNS(svgNS,'rect'); visRect.setAttribute('width',CW); visRect.setAttribute('height',CH); visRect.setAttribute('fill','white'); visRect.setAttribute('mask',`url(#${maskUid})`); maskSvg.appendChild(visRect);
+  const visRect = document.createElementNS(svgNS,'rect'); visRect.setAttribute('width',CW); visRect.setAttribute('height',CH); visRect.setAttribute('fill',CREAM_COLOR); visRect.setAttribute('mask',`url(#${maskUid})`); maskSvg.appendChild(visRect);
   container.appendChild(maskSvg);
 
   // clear inner and attach
@@ -2920,48 +2938,48 @@ function startDevilCard(card, sprite) {
 
     if (elapsed < DEVIL_T1) {
       cutoutGroups.forEach(g => setCutout(g, CW/2, 1));
-      colorDiv.style.background = '#000'; maskSvg.style.display = '';
+      colorDiv.style.background = DARK_COLOR; maskSvg.style.display = '';
 
     } else if (elapsed < DEVIL_T2) {
       const t = devilEase((elapsed-DEVIL_T1)/DEVIL_T_SPLIT);
       cutoutGroups.forEach((g,i) => setCutout(g, CW/2+(devilSymbolX(i,count,CW,SW,MARGIN)-CW/2)*t, 1));
-      colorDiv.style.background = '#000'; maskSvg.style.display = '';
+      colorDiv.style.background = DARK_COLOR; maskSvg.style.display = '';
 
     } else if (elapsed < DEVIL_T3) {
       cutoutGroups.forEach((g,i) => setCutout(g, devilSymbolX(i,count,CW,SW,MARGIN), 1));
-      colorDiv.style.background = '#000'; maskSvg.style.display = '';
+      colorDiv.style.background = DARK_COLOR; maskSvg.style.display = '';
 
     } else if (elapsed < DEVIL_T4) {
       const t = devilEase((elapsed-DEVIL_T3)/DEVIL_T_REVEAL);
       cutoutGroups.forEach((g,i) => setCutout(g, devilSymbolX(i,count,CW,SW,MARGIN), 1+(20-1)*t));
-      colorDiv.style.background = devilLerp('#000000', color, t);
+      colorDiv.style.background = devilLerp(DARK_COLOR, color, t);
       maskSvg.style.display = '';
 
     } else if (elapsed < DEVIL_T5) {
       const t = devilEase((elapsed-DEVIL_T4)/DEVIL_T_FADE);
       maskSvg.style.display = 'none';
-      const fadeTarget = fill === 'solid' ? '#000000' : '#ffffff';
+      const fadeTarget = fill === 'solid' ? DARK_COLOR : CREAM_COLOR;
       colorDiv.style.background = devilLerp(color, fadeTarget, t);
       finalSvg.style.opacity = t;
 
     } else if (elapsed < DEVIL_T6) {
       maskSvg.style.display = 'none';
-      colorDiv.style.background = fill === 'solid' ? '#000000' : '#ffffff';
+      colorDiv.style.background = fill === 'solid' ? DARK_COLOR : CREAM_COLOR;
       finalSvg.style.opacity = '1';
 
     } else if (elapsed < DEVIL_T7) {
       const t = devilEase((elapsed-DEVIL_T6)/DEVIL_T_SHRINK);
       maskSvg.style.display = '';
       cutoutGroups.forEach(g => setCutout(g, CW/2, 20-(20-1)*t));
-      const fillBg = fill === 'solid' ? '#000000' : '#ffffff';
-      colorDiv.style.background = devilLerp(fillBg, '#000000', t);
+      const fillBg = fill === 'solid' ? DARK_COLOR : CREAM_COLOR;
+      colorDiv.style.background = devilLerp(fillBg, DARK_COLOR, t);
       finalSvg.style.opacity = String(1-t);
 
     } else {
       devilGlobalStart = ts; // loop
       maskSvg.style.display = '';
       finalSvg.style.opacity = '0';
-      colorDiv.style.background = '#000';
+      colorDiv.style.background = DARK_COLOR;
     }
 
     if (devilRafs.has(card)) devilRafs.set(card, requestAnimationFrame(tick));
